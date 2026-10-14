@@ -30,7 +30,7 @@ extension SeverityX on Severity {
 
   static Severity fromApi(String value) => Severity.values.firstWhere(
         (s) => s.name == value,
-        orElse: () => Severity.minor,
+        orElse: () => throw FormatException('Unknown incident severity "$value".'),
       );
 }
 
@@ -64,7 +64,7 @@ extension IncidentStatusX on IncidentStatus {
 
   static IncidentStatus fromApi(String value) => IncidentStatus.values.firstWhere(
         (s) => s.name == value,
-        orElse: () => IncidentStatus.reported,
+        orElse: () => throw FormatException('Unknown incident status "$value".'),
       );
 }
 
@@ -118,19 +118,27 @@ class Incident {
         'victim_count': victimCount,
         'severity': severity.apiValue,
         'description': description,
-        'created_at': createdAt.toIso8601String(),
       };
 
-  factory Incident.fromJson(Map<String, dynamic> json) => Incident(
-        id: json['id'] as String?,
-        referenceNumber: json['reference_number'] as String?,
-        latitude: (json['lat'] as num).toDouble(),
-        longitude: (json['lng'] as num).toDouble(),
-        victimCount: json['victim_count'] as int? ?? 1,
-        severity: SeverityX.fromApi(json['severity'] as String? ?? 'minor'),
-        description: json['description'] as String? ?? '',
-        photoPath: json['photo_path'] as String?,
-        status: IncidentStatusX.fromApi(json['status'] as String? ?? 'reported'),
-        createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
-      );
+  factory Incident.fromJson(Map<String, dynamic> json) {
+    final createdAtValue = json['created_at'];
+    final createdAt = createdAtValue == null
+        ? DateTime.now()
+        : DateTime.parse(createdAtValue as String);
+    final victimCountValue = json['victim_count'];
+    return Incident(
+      id: json['id'] as String?,
+      referenceNumber: json['reference_number'] as String?,
+      latitude: (json['lat'] as num).toDouble(),
+      longitude: (json['lng'] as num).toDouble(),
+      victimCount: victimCountValue == null
+          ? 1
+          : (victimCountValue as num).toInt(),
+      severity: SeverityX.fromApi(json['severity'] as String),
+      description: json['description'] as String? ?? '',
+      photoPath: json['photo_path'] as String?,
+      status: IncidentStatusX.fromApi(json['status'] as String),
+      createdAt: createdAt,
+    );
+  }
 }

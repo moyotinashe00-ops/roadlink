@@ -25,7 +25,7 @@ class SeveritySelector extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 4),
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
-                color: selected ? s.color.withOpacity(0.18) : AppColors.surface,
+                color: selected ? s.color.withValues(alpha: 0.18) : AppColors.surface,
                 border: Border.all(color: selected ? s.color : AppColors.border, width: selected ? 2 : 1),
                 borderRadius: BorderRadius.circular(10),
               ),

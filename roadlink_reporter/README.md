@@ -39,32 +39,36 @@ flutter pub get
 flutter run
 ```
 
-### Demo mode (no backend required)
+### Connect to RoadLink Core
 
-`ApiService()` defaults to `mockMode: true`. Submitting a report returns a
-fake reference number immediately, and the status screen plays back a
-realistic `Reported → … → Admitted` sequence over about 35 seconds — enough
-to demo the whole app, including the multi-application coordination story,
-without RoadLink Core running.
+Reporter does not generate demo incidents or simulate status changes.
+It submits and follows reports through RoadLink Core, the shared backend used
+by the RoadLink apps.
 
-### Wiring up the real backend
+Set `ROADLINK_API` to the Core host root (without `/api/v1`):
 
-Once `RoadLink Core` (SRS §4.7) is deployed:
+```bash
+# Android emulator talking to Core on the development host
+flutter run --dart-define=ROADLINK_API=http://10.0.2.2:3000
 
-```dart
-final _apiService = ApiService(
-  baseUrl: 'https://your-roadlink-core-url/v1',
-  mockMode: false,
-);
+# Physical device: use the development host's LAN address
+flutter run --dart-define=ROADLINK_API=http://192.168.1.20:3000
+
+# Deployed environment
+flutter run --dart-define=ROADLINK_API=https://core.example.com
 ```
 
-This switches `submitIncident` to `POST /incidents` and `watchIncident` to
-polling `GET /incidents/{id}` every 5 seconds, matching the REST contract in
-SRS §6.4 and the WebSocket-unreachable fallback in NFR §7.3.
+Reporter creates incidents with `POST /api/v1/incidents`, optionally attaches
+a photo with `POST /api/v1/incidents/{id}/photo`, and polls
+`GET /api/v1/incidents/{id}` every five seconds for shared status changes.
+Use the same Core environment for Reporter, Police, Ambulance, Dispatch, and
+Hospital so every app sees the same incident records and lifecycle.
 
 ## Required native permissions
 
-Add these before building for a device.
+These permissions are configured in the platform files. Android requires
+network access for Core and location access for incident reports. iOS also
+declares location, camera, and photo-library purpose strings.
 
 **`android/app/src/main/AndroidManifest.xml`** (inside `<manifest>`, above `<application>`):
 

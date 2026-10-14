@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -9,102 +9,163 @@ import '../models/incident.dart';
 class ApiException implements Exception {
   final String message;
   ApiException(this.message);
+
   @override
   String toString() => message;
 }
 
-/// Client for the RoadLink Core backend described in the SRS (§3, §4.7,
-/// §6.4): a REST API for create/read actions, plus a live channel for
-/// status updates. RoadLink Core is out of scope for this repository —
-/// point [baseUrl] at your deployed backend and set [mockMode] to false
-/// once it is running.
-///
-/// With [mockMode] left on (the default), the app is fully demoable
-/// without a backend: submissions succeed locally and the status screen
-/// plays back a realistic Reported → Admitted sequence.
+class PhotoUploadException implements Exception {
+  final Incident incident;
+  final String message;
+
+  PhotoUploadException(this.incident, this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// RoadLink Core HTTP client shared by Reporter and the responder apps.
 class ApiService {
   ApiService({
-    this.baseUrl = 'https://api.roadlink.example.zw/v1',
-    this.mockMode = true,
-  });
+    String? baseUrl,
+    http.Client? client,
+    this.pollInterval = const Duration(seconds: 5),
+  })  : baseUrl = (baseUrl ?? const String.fromEnvironment('ROADLINK_API'))
+            .replaceFirst(RegExp(r'/+$'), ''),
+        _client = client ?? http.Client();
 
   final String baseUrl;
-  final bool mockMode;
+  final http.Client _client;
+  final Duration pollInterval;
 
-  /// Implements CIT-07: returns a saved incident carrying a confirmation
-  /// reference number.
-  Future<Incident> submitIncident(Incident draft) async {
-    if (mockMode) {
-      await Future.delayed(const Duration(milliseconds: 900));
-      final id = 'MOCK-${DateTime.now().millisecondsSinceEpoch}';
-      final ref = 'RL-${1000 + Random().nextInt(8999)}';
-      return draft.copyWith(id: id, referenceNumber: ref, status: IncidentStatus.reported);
+  void close() => _client.close();
+
+  Uri _apiUri(String path) {
+    if (baseUrl.isEmpty) {
+      throw ApiException(
+        'RoadLink Core is not configured. Set ROADLINK_API to the Core host URL.',
+      );
     }
-
-    final res = await http.post(
-      Uri.parse('$baseUrl/incidents'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode(draft.toJson()),
-    );
-
-    if (res.statusCode == 200 || res.statusCode == 201) {
-      return Incident.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
-    }
-    throw ApiException('Server returned ${res.statusCode}.');
+    return Uri.parse('$baseUrl/api/v1$path');
   }
 
-  /// Implements CIT-09 / NFR §7.3: live status for the citizen's own
-  /// report. In real mode this polls GET /incidents/{id} — the mobile
-  /// fallback described in the SRS for when the always-on WebSocket
-  /// channel is unreachable from a client. Poll, not push, is used here
-  /// deliberately: it keeps this app simple and works even on a flaky
-  /// connection.
-  Stream<Incident> watchIncident(Incident incident) {
-    final controller = StreamController<Incident>();
-    if (mockMode) {
-      _playMockSequence(incident, controller);
-    } else {
-      _pollStatus(incident, controller);
+  Future<Incident> submitIncident(Incident draft) async {
+    final response = await _send(
+      () => _client.post(
+        _apiUri('/incidents'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode(draft.toJson()),
+      ),
+    );
+    final saved = _decodeIncident(response, 'create incident');
+    if (saved.id == null || saved.id!.isEmpty) {
+      throw ApiException('RoadLink Core created the report without an incident ID.');
     }
+
+    final photoPath = draft.photoPath;
+    if (photoPath != null && photoPath.isNotEmpty) {
+      try {
+        final request = http.MultipartRequest(
+          'POST',
+          _apiUri('/incidents/${Uri.encodeComponent(saved.id!)}/photo'),
+        )..files.add(await http.MultipartFile.fromPath('photo', photoPath));
+        final photoResponse = await _send(() => _client.send(request));
+        if (photoResponse.statusCode < 200 || photoResponse.statusCode >= 300) {
+          throw ApiException(
+            'Photo upload returned ${photoResponse.statusCode}.',
+          );
+        }
+        await photoResponse.stream.drain<void>();
+      } catch (error) {
+        throw PhotoUploadException(
+          saved,
+          'Your report was sent, but the photo could not be uploaded. '
+          'Do not send the report again. You can continue to live status. '
+          'Details: $error',
+        );
+      }
+    }
+    return saved;
+  }
+
+  Stream<Incident> watchIncident(Incident incident) {
+    final id = incident.id;
+    if (id == null || id.isEmpty) {
+      return Stream<Incident>.error(
+        ApiException('Cannot watch a report without an incident ID.'),
+      );
+    }
+
+    late final StreamController<Incident> controller;
+    Timer? timer;
+    var requestInProgress = false;
+
+    Future<void> refresh() async {
+      if (controller.isClosed || requestInProgress) return;
+      requestInProgress = true;
+      try {
+        final response = await _send(
+          () => _client.get(
+            _apiUri('/incidents/${Uri.encodeComponent(id)}'),
+          ),
+        );
+        final updated = _decodeIncident(response, 'refresh incident');
+        if (controller.isClosed) return;
+        controller.add(updated);
+        if (updated.status == IncidentStatus.admitted ||
+            updated.status == IncidentStatus.closed) {
+          timer?.cancel();
+          await controller.close();
+        }
+      } catch (error, stackTrace) {
+        if (!controller.isClosed) {
+          controller.addError(error, stackTrace);
+        }
+      } finally {
+        requestInProgress = false;
+      }
+    }
+
+    controller = StreamController<Incident>(
+      onListen: () {
+        unawaited(refresh());
+        timer = Timer.periodic(pollInterval, (_) => unawaited(refresh()));
+      },
+      onCancel: () => timer?.cancel(),
+    );
     return controller.stream;
   }
 
-  Future<void> _playMockSequence(Incident incident, StreamController<Incident> controller) async {
-    const sequence = [
-      IncidentStatus.reported,
-      IncidentStatus.policeNotified,
-      IncidentStatus.policeOnScene,
-      IncidentStatus.ambulanceAssigned,
-      IncidentStatus.ambulanceEnRoute,
-      IncidentStatus.ambulanceOnScene,
-      IncidentStatus.transporting,
-      IncidentStatus.hospitalNotified,
-      IncidentStatus.admitted,
-    ];
-    for (final status in sequence) {
-      if (controller.isClosed) return;
-      controller.add(incident.copyWith(status: status));
-      await Future.delayed(const Duration(seconds: 4));
+  Future<T> _send<T>(Future<T> Function() request) async {
+    try {
+      return await request().timeout(const Duration(seconds: 20));
+    } on ApiException {
+      rethrow;
+    } on TimeoutException {
+      throw ApiException('RoadLink Core did not respond in time.');
+    } on SocketException catch (error) {
+      throw ApiException('Could not connect to RoadLink Core: $error');
+    } on http.ClientException catch (error) {
+      throw ApiException('RoadLink Core request failed: $error');
     }
-    await controller.close();
   }
 
-  void _pollStatus(Incident incident, StreamController<Incident> controller) {
-    final timer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      try {
-        final res = await http.get(Uri.parse('$baseUrl/incidents/${incident.id}'));
-        if (res.statusCode == 200) {
-          final updated = Incident.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
-          controller.add(updated);
-          if (updated.status == IncidentStatus.admitted || updated.status == IncidentStatus.closed) {
-            await controller.close();
-          }
-        }
-      } catch (_) {
-        // Transient network error — keep polling rather than surfacing
-        // a failure for a background status check.
+  Incident _decodeIncident(http.Response response, String operation) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        'Could not $operation: server returned ${response.statusCode}.',
+      );
+    }
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Expected a JSON object.');
       }
-    });
-    controller.onCancel = timer.cancel;
+      return Incident.fromJson(decoded);
+    } on FormatException catch (error) {
+      throw ApiException('RoadLink Core returned an invalid report: $error');
+    } on TypeError catch (error) {
+      throw ApiException('RoadLink Core returned an invalid report: $error');
+    }
   }
 }

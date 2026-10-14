@@ -75,7 +75,7 @@ class _PulseSosButtonState extends State<PulseSosButton> with SingleTickerProvid
           colors: [AppColors.alert, Color(0xFFB2101F)],
         ),
         boxShadow: [
-          BoxShadow(color: AppColors.alert.withOpacity(0.55), blurRadius: 30, spreadRadius: 4),
+          BoxShadow(color: AppColors.alert.withValues(alpha: 0.55), blurRadius: 30, spreadRadius: 4),
         ],
       ),
       child: Text(
@@ -100,7 +100,7 @@ class _PulseSosButtonState extends State<PulseSosButton> with SingleTickerProvid
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.alert.withOpacity(opacity), width: 2),
+        border: Border.all(color: AppColors.alert.withValues(alpha: opacity), width: 2),
       ),
     );
   }

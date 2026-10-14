@@ -19,6 +19,7 @@ class StatusTimeline extends StatelessWidget {
     IncidentStatus.transporting,
     IncidentStatus.hospitalNotified,
     IncidentStatus.admitted,
+    IncidentStatus.closed,
   ];
 
   @override
@@ -48,7 +49,7 @@ class StatusTimeline extends StatelessWidget {
                     Expanded(
                       child: Container(
                         width: 2,
-                        color: done ? AppColors.amber.withOpacity(0.5) : AppColors.border,
+                        color: done ? AppColors.amber.withValues(alpha: 0.5) : AppColors.border,
                       ),
                     ),
                 ],

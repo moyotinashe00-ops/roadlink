@@ -22,7 +22,7 @@ class ReportScreen extends StatefulWidget {
 
 class _ReportScreenState extends State<ReportScreen> {
   final _locationService = LocationService();
-  final _apiService = ApiService(); // mockMode: true — see README to wire up RoadLink Core.
+  final _apiService = ApiService();
   final _descriptionController = TextEditingController();
   final _picker = ImagePicker();
 
@@ -42,6 +42,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
   @override
   void dispose() {
+    _apiService.close();
     _descriptionController.dispose();
     super.dispose();
   }
@@ -124,9 +125,14 @@ class _ReportScreenState extends State<ReportScreen> {
       final saved = await _apiService.submitIncident(draft);
       if (!mounted) return;
       Navigator.of(context).pop(saved);
-    } catch (_) {
+    } on PhotoUploadException catch (error) {
+      if (!mounted) return;
+      await _showPhotoUploadWarning(error.message);
+      if (mounted) Navigator.of(context).pop(error.incident);
+    } on ApiException catch (error) {
+      if (!mounted) return;
       setState(() => _submitting = false);
-      if (mounted) _showFallbackDialog();
+      _showFallbackDialog(error.message);
     }
   }
 
@@ -134,13 +140,13 @@ class _ReportScreenState extends State<ReportScreen> {
   // offline queueing: if the network can't be reached, offer the
   // always-available voice-call channel immediately instead of silently
   // storing the report for later.
-  void _showFallbackDialog() {
+  void _showFallbackDialog(String error) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
         title: const Text('Could not reach the network'),
-        content: const Text('Your report was not sent. Call the dispatch centre directly, or try sending again.'),
+        content: Text('$error\n\nYour report was not sent. Call dispatch or try again.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('RETRY')),
           TextButton(
@@ -150,6 +156,23 @@ class _ReportScreenState extends State<ReportScreen> {
               if (await canLaunchUrl(uri)) await launchUrl(uri);
             },
             child: const Text('CALL DISPATCH'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showPhotoUploadWarning(String message) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Report sent; photo not attached'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('VIEW LIVE STATUS'),
           ),
         ],
       ),

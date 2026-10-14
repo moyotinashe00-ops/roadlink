@@ -23,25 +23,35 @@ class _StatusScreenState extends State<StatusScreen> {
   final _apiService = ApiService();
   late Incident _incident;
   StreamSubscription<Incident>? _sub;
+  String? _refreshError;
 
   @override
   void initState() {
     super.initState();
     _incident = widget.incident;
     _sub = _apiService.watchIncident(_incident).listen((updated) {
-      if (mounted) setState(() => _incident = updated);
+      if (mounted) {
+        setState(() {
+          _incident = updated;
+          _refreshError = null;
+        });
+      }
+    }, onError: (Object error) {
+      if (mounted) setState(() => _refreshError = error.toString());
     });
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    _apiService.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final closed = _incident.status == IncidentStatus.admitted;
+    final closed = _incident.status == IncidentStatus.admitted ||
+        _incident.status == IncidentStatus.closed;
     return Scaffold(
       appBar: AppBar(title: const Text('LIVE STATUS')),
       body: HudBackground(
@@ -88,6 +98,18 @@ class _StatusScreenState extends State<StatusScreen> {
                   ],
                 ),
               ),
+              if (_refreshError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    'Live status could not be refreshed. Retrying automatically. '
+                    '$_refreshError',
+                    style: GoogleFonts.ibmPlexSans(
+                      color: AppColors.alert,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 28),
               Text(
                 'RESPONSE TIMELINE',
@@ -99,7 +121,9 @@ class _StatusScreenState extends State<StatusScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
-                    'Patient admitted. Thank you for reporting.',
+                    _incident.status == IncidentStatus.admitted
+                        ? 'Patient admitted. Thank you for reporting.'
+                        : 'Incident closed. Thank you for reporting.',
                     style: GoogleFonts.ibmPlexSans(color: AppColors.safe),
                   ),
                 ),
