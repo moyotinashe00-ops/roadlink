@@ -1,0 +1,21 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Uploaded photos (runtime data)
+roadlink-core/uploads/*
+!roadlink-core/uploads/.gitkeep
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
