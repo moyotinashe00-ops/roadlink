@@ -29,15 +29,14 @@ is actually working right now.
 
 ## Running it
 
-This repository ships `pubspec.yaml` and `lib/` only. To run it:
+The repository includes the full Flutter project, including the platform folders. From this directory:
 
 ```bash
-flutter create --org zw.co.roadlink roadlink_reporter_shell
-# copy pubspec.yaml and lib/ from this repo into that shell, overwriting both
-cd roadlink_reporter_shell
 flutter pub get
-flutter run
+flutter run --dart-define=ROADLINK_API=http://10.0.2.2:3000
 ```
+
+See "Connect to RoadLink Core" below for the right `ROADLINK_API` value for your device.
 
 ### Connect to RoadLink Core
 

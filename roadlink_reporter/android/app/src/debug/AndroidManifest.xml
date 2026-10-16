@@ -4,4 +4,8 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Development only: lets the app reach a local RoadLink Core over plain http
+         (for example http://10.0.2.2:3000). The release manifest does not set this,
+         so release builds keep Android's default of HTTPS only. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

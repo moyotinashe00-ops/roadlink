@@ -43,16 +43,18 @@ Demo logins (password = `SEED_PASSWORD`, default `ChangeMe123!`): `admin@`, `dis
 
 ## Connecting the Flutter Reporter app
 
-In `report_screen.dart` and `status_screen.dart`, change `ApiService()` to:
+The Reporter talks to Core directly; there is no mock mode. Give it the Core host root (without `/api/v1`) at build time:
 
-```dart
-ApiService(baseUrl: 'http://10.0.2.2:3000/api/v1', mockMode: false)   // 10.0.2.2 = host machine from the Android emulator
+```bash
+cd ../roadlink_reporter
+flutter run --dart-define=ROADLINK_API=http://10.0.2.2:3000        # Android emulator -> host machine
+flutter run --dart-define=ROADLINK_API=http://192.168.1.20:3000    # physical device -> host LAN address
 ```
 
-The response field names and the status strings (`policeNotified`, `ambulanceEnRoute`, …) already match what the
-app's `Incident.fromJson` / `IncidentStatus` parse. For plain-`http` development on Android add
-`android:usesCleartextTraffic="true"` to the `<application>` tag; use HTTPS in any real deployment.
-Photo upload (`POST /incidents/:id/photo`) is implemented server-side; the Flutter app does not call it yet.
+The response field names and the status strings (`policeNotified`, `ambulanceEnRoute`, …) match what the
+app's `Incident.fromJson` / `IncidentStatus` parse. Debug and profile Android builds allow plain `http`;
+release builds do not, so use HTTPS in any real deployment. The app also uploads the optional photo
+(`POST /incidents/:id/photo`) after the report is created.
 
 ## Tests
 

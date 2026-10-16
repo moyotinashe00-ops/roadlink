@@ -150,11 +150,28 @@ class ApiService {
     }
   }
 
+  /// RoadLink Core errors look like {"error": {"code": "...", "message": "..."}}.
+  /// Keep that message (for example the rate-limit advice to call dispatch) instead of
+  /// showing only a bare status code. Non-JSON bodies, such as from a proxy, fall back
+  /// to the status code alone.
+  String _failureMessage(http.Response response, String operation) {
+    final base = 'Could not $operation: server returned ${response.statusCode}.';
+    try {
+      final decoded = jsonDecode(response.body);
+      final error = decoded is Map<String, dynamic> ? decoded['error'] : null;
+      final message = error is Map<String, dynamic> ? error['message'] : null;
+      if (message is String && message.trim().isNotEmpty) {
+        return '$base ${message.trim()}';
+      }
+    } on FormatException {
+      // Not JSON: use the status code only.
+    }
+    return base;
+  }
+
   Incident _decodeIncident(http.Response response, String operation) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(
-        'Could not $operation: server returned ${response.statusCode}.',
-      );
+      throw ApiException(_failureMessage(response, operation));
     }
     try {
       final decoded = jsonDecode(response.body);

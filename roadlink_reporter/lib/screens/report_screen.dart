@@ -145,7 +145,7 @@ class _ReportScreenState extends State<ReportScreen> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Could not reach the network'),
+        title: const Text('Report not sent'),
         content: Text('$error\n\nYour report was not sent. Call dispatch or try again.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('RETRY')),
