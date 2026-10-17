@@ -4,10 +4,12 @@ const { pool } = require('./db');
 const { createApp } = require('./app');
 const { attach } = require('./realtime/socket');
 const notifications = require('./services/notifications');
+const escalation = require('./services/escalation');
 
 const server = http.createServer(createApp());
 const io = attach(server);
 notifications.init(io);
+escalation.start();
 
 server.listen(config.port, () => {
   console.log(`[roadlink-core] listening on :${config.port} (${config.env})`);
@@ -15,6 +17,7 @@ server.listen(config.port, () => {
 
 function shutdown(signal) {
   console.log(`[roadlink-core] ${signal} received, shutting down`);
+  escalation.stop();
   io.close();
   server.close(async () => {
     await pool.end().catch(() => {});

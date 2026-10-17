@@ -59,7 +59,7 @@ release builds do not, so use HTTPS in any real deployment. The app also uploads
 ## Tests
 
 ```bash
-npm test     # 51 integration tests against a REAL PostgreSQL + PostGIS database
+npm test     # 62 integration tests against a REAL PostgreSQL + PostGIS database
 ```
 Tests run against `TEST_DATABASE_URL` (default `postgres://postgres:postgres@localhost:5432/roadlink_test`) and
 **truncate every table**, so the harness refuses to start unless the database name ends in `_test`. They cover the full
@@ -87,15 +87,16 @@ tests/               integration suites                      docs/API.md     end
   so two dispatchers cannot send the same vehicle to two crashes. Covered by a concurrency test.
 - **Status only moves forward.** Police, ambulance and hospital progress in parallel; a late lower-ranked event goes in
   the audit trail without making the citizen's view regress.
-- **Duplicate reports are merged**, not double-dispatched: a new report within 150 m of an open incident in the last
-  30 minutes raises `report_count`, takes the worse severity and higher victim count, and notifies dispatch.
+- **Duplicate reports are merged**, not double-dispatched: a new report within 150 m of an open incident with
+  activity in the last 30 minutes raises `report_count`, takes the worse severity and higher victim count, and notifies dispatch. Creation is serialised, so simultaneous reports of one crash cannot slip through as separate incidents.
 - **Citizens need no account** (SRS CIT-01), so abuse is handled by per-IP rate limiting, strict validation, an
   optional Zimbabwe geofence (`GEOFENCE_ZW`), and duplicate merging. Their incident id is an unguessable UUID that
   unlocks only a minimal public view; reporter phone numbers go to dispatch only.
 - **Channel redundancy instead of offline sync**, per the revised SRS: app → USSD → voice call all create the same
   incident record.
 - **Police are a first-class actor:** the nearest available unit is alerted at creation; they can accept, decline
-  (auto-reassign to the next-nearest), update scene facts and record the case number.
+  (auto-reassign to the next-nearest), update scene facts and record the case number. If the alerted unit stays silent for `POLICE_ACK_TIMEOUT_MIN`, the next-nearest unit is alerted
+  automatically, and dispatch is warned (`police_unresponsive`) when nobody is left.
 
 ## Known limitations (read before relying on this)
 
@@ -107,8 +108,13 @@ tests/               integration suites                      docs/API.md     end
   (dry-run), which is what the tests exercise. Verify with a real device token before relying on it.
 - **Docker files were not built here** (no Docker in the dev sandbox); the schema, API and tests were run against real
   PostgreSQL 16 + PostGIS 3.4.
-- **One ambulance per incident.** Multi-vehicle crashes are not modelled yet.
-- **Single-instance assumptions:** rate limits are in-memory, photos go to local disk, and Socket.IO rooms are
+- **Rate limits depend on `TRUST_PROXY`.** Behind a reverse proxy set `TRUST_PROXY=1`, otherwise every citizen appears to come
+  from the proxy's address and shares one limit. Anonymous reports are capped at `REPORT_RATE_LIMIT_PER_MIN` per address
+  (default 60) because many phones can share one mobile-network address.
+- **One ambulance per incident.** Multi-vehicle crashes are not modelled yet. This is built into the data model (one
+  `assignments` row per incident); supporting several needs an `incident_ambulances` table. Until then a dispatcher can
+  swap a crew with `force: true`, but cannot add a second vehicle.
+- **Single-instance assumptions:** rate limits are in-memory (they reset on restart and are not shared between servers), photos go to local disk, and Socket.IO rooms are
   per-process. Scaling out needs Redis (rate limit store + `@socket.io/redis-adapter`) and object storage (S3) for photos.
 - **Socket auth is checked at connect.** A deactivated user's *HTTP* access stops immediately, but an already-open
   socket stays until it reconnects or its token expires (a timer disconnects it at expiry).

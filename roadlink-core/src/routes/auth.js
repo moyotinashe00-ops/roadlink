@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { z } = require('zod');
 const config = require('../config');
 const { query } = require('../db');
@@ -16,6 +16,18 @@ const loginLimiter = rateLimit({
   message: { error: { code: 'RATE_LIMITED', message: 'Too many login attempts. Try again later.' } },
 });
 
+// Per-account limit, so one password cannot be guessed by rotating IP addresses (and a shared office or
+// hospital address is not locked out by one person's typos on another's account).
+const accountLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false,
+  skip: () => config.env === 'test',
+  keyGenerator: (req) => {
+    const id = req.body && typeof req.body.identifier === 'string' ? req.body.identifier.trim().toLowerCase().slice(0, 120) : '';
+    return id ? `acct:${id}` : ipKeyGenerator(req.ip);
+  },
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many attempts on this account. Try again later.' } },
+});
+
 // Compared against when the account doesn't exist, so response time doesn't reveal which logins are valid.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
 
@@ -24,7 +36,7 @@ const publicUser = (u) => ({
   hospital_id: u.hospital_id, police_unit_id: u.police_unit_id, ambulance_id: u.ambulance_id,
 });
 
-router.post('/login', loginLimiter,
+router.post('/login', loginLimiter, accountLoginLimiter,
   validate(z.object({ identifier: z.string().trim().min(3).max(120), password: z.string().min(1).max(200) })),
   async (req, res) => {
     const { identifier, password } = req.valid.body;

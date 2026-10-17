@@ -122,9 +122,12 @@ CREATE TABLE IF NOT EXISTS assignments (
   hospital_eta_minutes INT,
   hospital_state       TEXT CHECK (hospital_state IN ('notified', 'acknowledged', 'admitted')),
   police_assigned_at   TIMESTAMPTZ,
+  police_escalated     BOOLEAN NOT NULL DEFAULT FALSE,  -- dispatch already told that no unit answered
   ambulance_assigned_at TIMESTAMPTZ,
   hospital_assigned_at TIMESTAMPTZ
 );
+-- Databases created before escalation existed:
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS police_escalated BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS case_references (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -60,9 +60,9 @@ These camelCase strings are exactly what the Flutter app's `IncidentStatus` enum
 ### Dispatcher
 | Path | Notes |
 |---|---|
-| `POST /incidents/:id/ambulance` | `{ ambulance_id? }` — omit to take the nearest available. Atomic: two dispatchers cannot claim the same ambulance (loser gets `409 AMBULANCE_UNAVAILABLE`). Returns `eta_minutes` |
+| `POST /incidents/:id/ambulance` | `{ ambulance_id?, force? }` — omit `ambulance_id` to take the best available ambulance: recent GPS first, then nearest (a position older than `STALE_LOCATION_MIN` is only used when nothing fresher is free). Atomic: two dispatchers cannot claim the same ambulance (loser gets `409 AMBULANCE_UNAVAILABLE`). Replacing an ambulance that is already on scene or transporting is refused with `409 AMBULANCE_ON_JOB` unless `force: true` (for example a breakdown). Returns `eta_minutes` |
 | `POST /incidents/:id/hospital` | `{ hospital_id? }` — omit to take the top recommendation. Returns `eta_minutes` and `warnings[]` (e.g. no free bays) |
-| `POST /incidents/:id/close` | `{ outcome?: completed\|false_alarm\|cancelled, note? }`. `completed` requires hospital admission first. Releases ambulance and police unit |
+| `POST /incidents/:id/close` | `{ outcome?: completed\|no_transport\|false_alarm\|cancelled, note? }`. `completed` requires hospital admission first; use `no_transport` when nobody is taken to hospital (for example a fatality). Releases ambulance and police unit |
 
 ### Ambulance crew
 | Path | Notes |
@@ -115,8 +115,10 @@ Connect to the server root. Staff: `io(url, { auth: { token } })`. Citizens: con
 | `hospital:capacity` | dispatch/admin | hospital row |
 | `auth:expired` | the staff socket | sent just before the server disconnects it |
 
-`event` values on the socket: `incident_created`, `duplicate_report_merged`, `police_notified`, `police_accepted`, `police_declined`, `police_on_scene`, `scene_updated`, `scene_cleared`, `case_reference_recorded`, `ambulance_assigned`, `ambulance_en_route`, `ambulance_on_scene`, `ambulance_transporting`, `ambulance_arrived_at_hospital`, `hospital_notified`, `hospital_acknowledged`, `patient_admitted`, `incident_closed`, `photo_attached`.
+`event` values on the socket: `incident_created`, `duplicate_report_merged`, `police_notified`, `police_accepted`, `police_declined`, `police_escalated`, `police_unresponsive`, `police_on_scene`, `scene_updated`, `scene_cleared`, `case_reference_recorded`, `ambulance_assigned`, `ambulance_en_route`, `ambulance_on_scene`, `ambulance_transporting`, `ambulance_arrived_at_hospital`, `hospital_notified`, `hospital_acknowledged`, `patient_admitted`, `incident_closed`, `photo_attached`.
 
-The audit trail (`GET /incidents/:id/timeline`) is slightly finer-grained: it also distinguishes `ambulance_reassigned`, `hospital_reassigned` and `incident_closed_completed|false_alarm|cancelled`.
+The audit trail (`GET /incidents/:id/timeline`) is slightly finer-grained: it also distinguishes `ambulance_reassigned`, `hospital_reassigned` and `incident_closed_completed|no_transport|false_alarm|cancelled`.
+
+`police_escalated` is written when the alerted unit did not accept or decline within `POLICE_ACK_TIMEOUT_MIN` and the next nearest unit was alerted. `police_unresponsive` means no other unit was left, so dispatch should phone the station; it is raised once per alert.
 
 Push (FCM) is sent to police on new incidents, to the ambulance crew on assignment/cancellation, and to the hospital on pre-arrival notice.

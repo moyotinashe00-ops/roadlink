@@ -11,7 +11,8 @@ function createApp() {
   app.disable('x-powered-by');
 
   app.use(helmet());
-  app.use(cors({ origin: config.corsOrigins.length ? config.corsOrigins : true }));
+  // Production only allows the origins you list; development reflects any origin for convenience.
+  app.use(cors({ origin: config.corsOrigins.length ? config.corsOrigins : config.env !== 'production' }));
   app.use(express.json({ limit: '100kb' }));
 
   if (config.env !== 'test') {

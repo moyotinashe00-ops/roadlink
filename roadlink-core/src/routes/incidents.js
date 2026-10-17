@@ -42,7 +42,7 @@ const listSchema = z.object({
 
 // Anonymous reporting must stay open (SRS CIT-01) so it is rate limited per IP instead of authenticated.
 const reportLimiter = rateLimit({
-  windowMs: 60 * 1000, limit: 12, standardHeaders: 'draft-7', legacyHeaders: false,
+  windowMs: 60 * 1000, limit: config.reportRateLimitPerMin, standardHeaders: 'draft-7', legacyHeaders: false,
   skip: (req) => config.env === 'test' || !!req.user,
   message: { error: { code: 'RATE_LIMITED', message: 'Too many reports from this connection. Please call the dispatch centre.' } },
 });
@@ -174,9 +174,9 @@ router.put('/:id/case-reference', id, authenticate, police,
 const dispatcher = requireRole('dispatcher', 'admin');
 
 router.post('/:id/ambulance', id, authenticate, dispatcher,
-  validate(z.object({ ambulance_id: z.uuid().optional() })),
+  validate(z.object({ ambulance_id: z.uuid().optional(), force: z.boolean().optional() })),
   async (req, res) => {
-    const r = await svc.assignAmbulance(req.params.id, req.user, req.valid.body.ambulance_id);
+    const r = await svc.assignAmbulance(req.params.id, req.user, req.valid.body.ambulance_id, { force: req.valid.body.force });
     res.json({ ...staffView(r.row, req.user.role), eta_minutes: r.eta_minutes });
   });
 
@@ -188,7 +188,7 @@ router.post('/:id/hospital', id, authenticate, dispatcher,
   });
 
 router.post('/:id/close', id, authenticate, dispatcher,
-  validate(z.object({ outcome: z.enum(['completed', 'false_alarm', 'cancelled']).default('completed'), note: z.string().trim().max(300).optional() })),
+  validate(z.object({ outcome: z.enum(['completed', 'no_transport', 'false_alarm', 'cancelled']).default('completed'), note: z.string().trim().max(300).optional() })),
   async (req, res) => rowOut(req, res, await svc.closeIncident(req.params.id, req.user, req.valid.body)));
 
 // ---------------------------------------------------------------------------

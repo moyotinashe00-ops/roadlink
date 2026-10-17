@@ -17,9 +17,6 @@ const { createIncident } = require('../services/incidentService');
 
 const router = express.Router();
 
-const limiter = rateLimit({
-  windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false, skip: () => config.env === 'test',
-});
 
 const VICTIMS = [1, 3, 4];                                   // menu answers 1/2/3 -> "1", "2-3", "4 or more"
 const SEVERITIES = ['minor', 'serious', 'critical', 'fatal']; // menu answers 1..4
@@ -30,6 +27,14 @@ function secretOk(provided) {
   const b = Buffer.from(config.ussdSecret);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+
+// The gateway is already authenticated by its secret key, and all USSD traffic arrives from the
+// gateway's few addresses, so a per-IP cap would throttle genuine callers during a busy period.
+// Only requests that fail the key check are rate limited.
+const limiter = rateLimit({
+  windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false,
+  skip: (req) => config.env === 'test' || secretOk(req.query.key),
+});
 
 const reply = (res, text) => res.type('text/plain').send(text);
 

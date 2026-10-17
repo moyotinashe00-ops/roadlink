@@ -1,7 +1,7 @@
 const config = require('../config');
 const { pool, query, withTransaction } = require('../db');
-const { badRequest, forbidden, notFound, conflict } = require('../middleware/errors');
-const { nearestPoliceUnit, recommendHospitals } = require('./dispatchService');
+const { forbidden, notFound, conflict } = require('../middleware/errors');
+const { AMBULANCE_ORDER_SQL, nearestPoliceUnit, recommendHospitals } = require('./dispatchService');
 const { estimateMinutes } = require('./geo');
 const notify = require('./notifications');
 const { publicView, staffView } = require('./views');
@@ -16,6 +16,10 @@ const STATUS_ORDER = [
 ];
 const SEVERITY_ORDER = ['minor', 'serious', 'critical', 'fatal'];
 const AMBULANCE_STATES = ['assigned', 'enRoute', 'onScene', 'transporting', 'arrived'];
+// Once the crew is at the scene or has a patient on board, reassigning would strand them.
+const AMBULANCE_COMMITTED_STATES = ['onScene', 'transporting', 'arrived'];
+// Held while a new incident is created so simultaneous reports of one crash are merged, not duplicated.
+const CREATE_INCIDENT_LOCK = 727001;
 const rank = (list, v) => list.indexOf(v);
 
 const INCIDENT_SELECT = `
@@ -104,11 +108,15 @@ async function createIncident(input, user = null) {
   const point = 'ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography';
 
   const created = await withTransaction(async (db) => {
+    // Creation is rare and fast, so serialise it. Without this, two reports arriving together both see
+    // "no open incident nearby" and each creates one, which alerts two police units for one crash.
+    await db.query('SELECT pg_advisory_xact_lock($1)', [CREATE_INCIDENT_LOCK]);
+
     // Several bystanders usually report the same crash. Merge rather than dispatching twice.
     const dup = await db.query(
       `SELECT id, severity, victim_count, description FROM incidents
        WHERE status NOT IN ('admitted', 'closed')
-         AND created_at > now() - make_interval(mins => $3::int)
+         AND updated_at > now() - make_interval(mins => $3::int)   -- last activity, so a long-running scene keeps merging
          AND ST_DWithin(location, ${point}, $4)
        ORDER BY ST_Distance(location, ${point})
        LIMIT 1 FOR UPDATE`,
@@ -250,13 +258,18 @@ const policeDecline = (id, user, reason) => mutate(id, async (db) => {
   if (!['notified', 'accepted'].includes(as.police_state)) throw conflict(`Cannot decline once ${as.police_state}`, 'BAD_STATE');
   const declined = [...as.declined_police_unit_ids, as.police_unit_id];
   const next = await nearestPoliceUnit(db, id, declined);
+  // A unit that accepted was marked busy; handing the incident back must free it again.
+  if (as.police_state === 'accepted') await db.query('UPDATE police_units SET is_available = TRUE WHERE id = $1', [as.police_unit_id]);
   await db.query(
-    `UPDATE assignments SET police_unit_id = $2, police_state = $3, declined_police_unit_ids = $4, police_assigned_at = now()
+    `UPDATE assignments SET police_unit_id = $2, police_state = $3, declined_police_unit_ids = $4,
+            police_assigned_at = now(), police_escalated = FALSE
      WHERE incident_id = $1`, [id, next ? next.id : null, next ? 'notified' : null, declined]);
   await setStatus(db, id, null, {
     actor: actorOf(user), event: 'police_declined',
     note: `${reason || 'No reason given'}${next ? ` — reassigned to ${next.name}` : ' — no other unit available'}`,
   });
+  // Nobody is alerted any more, so do not tell the citizen that police were notified.
+  if (!next) await db.query("UPDATE incidents SET status = 'reported' WHERE id = $1 AND status = 'policeNotified'", [id]);
   return {
     event: 'police_declined',
     extra: { reassigned_to: next ? next.name : null },
@@ -318,11 +331,14 @@ const recordCaseReference = (id, user, referenceNumber) => mutate(id, async (db)
 // ---------------------------------------------------------------------------
 // Dispatcher: ambulance, hospital, close
 // ---------------------------------------------------------------------------
-const assignAmbulance = (id, user, ambulanceId) => mutate(id, async (db) => {
+const assignAmbulance = (id, user, ambulanceId, { force = false } = {}) => mutate(id, async (db) => {
   const inc = (await db.query('SELECT status FROM incidents WHERE id = $1', [id])).rows[0];
   if (['admitted'].includes(inc.status)) throw conflict('Patient already admitted', 'BAD_STATE');
   const as = await getAssignment(db, id);
   if (as && as.ambulance_id && as.ambulance_id === ambulanceId) throw conflict('That ambulance is already assigned', 'ALREADY_ASSIGNED');
+  if (as && as.ambulance_id && AMBULANCE_COMMITTED_STATES.includes(as.ambulance_state) && !force) {
+    throw conflict(`The assigned ambulance is already ${as.ambulance_state}. Reassigning would strand its crew; resend with force if it has really broken down.`, 'AMBULANCE_ON_JOB');
+  }
 
   // Claim atomically: only one dispatcher can win a given ambulance.
   let claimed;
@@ -335,7 +351,7 @@ const assignAmbulance = (id, user, ambulanceId) => mutate(id, async (db) => {
       `UPDATE ambulances SET is_available = FALSE WHERE id = (
          SELECT a.id FROM ambulances a, incidents i
          WHERE i.id = $1 AND a.is_active AND a.is_available AND a.location IS NOT NULL
-         ORDER BY a.location <-> i.location LIMIT 1 FOR UPDATE OF a SKIP LOCKED)
+         ORDER BY ${AMBULANCE_ORDER_SQL} LIMIT 1 FOR UPDATE OF a SKIP LOCKED)
        RETURNING id, plate_number`, [id])).rows[0];
     if (!claimed) throw conflict('No ambulance is currently available', 'NO_AMBULANCE_AVAILABLE');
   }
@@ -352,7 +368,8 @@ const assignAmbulance = (id, user, ambulanceId) => mutate(id, async (db) => {
      ON CONFLICT (incident_id) DO UPDATE SET ambulance_id = EXCLUDED.ambulance_id, ambulance_state = 'assigned',
        ambulance_eta_minutes = EXCLUDED.ambulance_eta_minutes, ambulance_assigned_at = now()`, [id, claimed.id, eta]);
   await setStatus(db, id, 'ambulanceAssigned', {
-    actor: actorOf(user), event: as && as.ambulance_id ? 'ambulance_reassigned' : 'ambulance_assigned', note: claimed.plate_number,
+    actor: actorOf(user), event: as && as.ambulance_id ? 'ambulance_reassigned' : 'ambulance_assigned',
+    note: `${claimed.plate_number}${force && as && as.ambulance_id ? ' (forced reassignment)' : ''}`,
   });
   return {
     event: 'ambulance_assigned',
@@ -443,7 +460,7 @@ const hospitalAdmit = (id, user) => mutate(id, async (db) => {
 const closeIncident = (id, user, { outcome = 'completed', note }) => mutate(id, async (db) => {
   const inc = (await db.query('SELECT status FROM incidents WHERE id = $1', [id])).rows[0];
   if (outcome === 'completed' && inc.status !== 'admitted') {
-    throw conflict('The hospital has not confirmed admission. Close as false_alarm or cancelled instead.', 'NOT_ADMITTED');
+    throw conflict('The hospital has not confirmed admission. Close as no_transport, false_alarm or cancelled instead.', 'NOT_ADMITTED');
   }
   const as = await getAssignment(db, id);
   if (as && as.ambulance_id) await db.query('UPDATE ambulances SET is_available = TRUE WHERE id = $1', [as.ambulance_id]);
@@ -462,6 +479,66 @@ const closeIncident = (id, user, { outcome = 'completed', note }) => mutate(id, 
     },
   };
 });
+
+// ---------------------------------------------------------------------------
+// Escalation: a police unit that never answers must not stall an emergency
+// ---------------------------------------------------------------------------
+/**
+ * Find incidents whose alerted police unit has neither accepted nor declined within
+ * config.policeAckTimeoutMin and pass them to the next nearest unit. When no other unit exists, tell
+ * dispatch once (police_unresponsive) so a human can phone someone. Safe to run on several server
+ * instances at once: each incident is locked with SKIP LOCKED, so only one instance acts on it.
+ * Returns the number of incidents it escalated.
+ */
+async function escalateUnresponsivePolice() {
+  const timeoutSecs = Math.max(1, Math.round(config.policeAckTimeoutMin * 60));
+  const { rows: due } = await query(
+    `SELECT a.incident_id FROM assignments a JOIN incidents i ON i.id = a.incident_id
+     WHERE a.police_state = 'notified' AND NOT a.police_escalated AND i.status <> 'closed'
+       AND a.police_assigned_at < now() - make_interval(secs => $1::int)`, [timeoutSecs]);
+
+  let escalated = 0;
+  for (const { incident_id: id } of due) {
+    const system = { actor_user_id: null, actor_role: 'system' };
+    const result = await withTransaction(async (db) => {
+      const locked = await db.query("SELECT 1 FROM incidents WHERE id = $1 AND status <> 'closed' FOR UPDATE SKIP LOCKED", [id]);
+      if (!locked.rows[0]) return null;
+      // Re-check under the lock: the unit may have answered while we were queueing.
+      const as = (await db.query(
+        `SELECT * FROM assignments WHERE incident_id = $1 AND police_state = 'notified' AND NOT police_escalated
+           AND police_assigned_at < now() - make_interval(secs => $2::int) FOR UPDATE`, [id, timeoutSecs])).rows[0];
+      if (!as) return null;
+
+      const silent = (await db.query('SELECT name FROM police_units WHERE id = $1', [as.police_unit_id])).rows[0];
+      const declined = [...as.declined_police_unit_ids, as.police_unit_id];
+      const next = await nearestPoliceUnit(db, id, declined);
+      const waited = `${silent ? silent.name : 'The alerted unit'} did not respond within ${config.policeAckTimeoutMin} min`;
+
+      if (next) {
+        await db.query(
+          `UPDATE assignments SET police_unit_id = $2, police_state = 'notified', declined_police_unit_ids = $3,
+                  police_assigned_at = now(), police_escalated = FALSE WHERE incident_id = $1`, [id, next.id, declined]);
+        await setStatus(db, id, null, { actor: system, event: 'police_escalated', note: `${waited}; alerted ${next.name}` });
+        return { event: 'police_escalated', silentUnitId: as.police_unit_id, nextId: next.id };
+      }
+      await db.query('UPDATE assignments SET police_escalated = TRUE WHERE incident_id = $1', [id]);
+      await setStatus(db, id, null, { actor: system, event: 'police_unresponsive', note: `${waited}; no other unit is available. Phone the station.` });
+      return { event: 'police_unresponsive', silentUnitId: null, nextId: null };
+    });
+    if (!result) continue;
+
+    escalated += 1;
+    const row = await getIncidentRow(pool, id);
+    notify.fanout(row, result.event);
+    if (result.silentUnitId) notify.tellResource('police', result.silentUnitId, 'incident:unassigned', { incident_id: id });
+    if (result.nextId) {
+      await notify.pushToResource('police', result.nextId, {
+        title: 'Road accident reported near you', body: pushText(row), data: { type: 'incident_new', incident_id: id },
+      });
+    }
+  }
+  return escalated;
+}
 
 // ---------------------------------------------------------------------------
 // Photo attachment
@@ -491,5 +568,6 @@ module.exports = {
   createIncident, getIncidentForUser, listIncidents, getTimeline, getRecommendations, getIncidentRow,
   policeAccept, policeDecline, policeOnScene, sceneUpdate, policeClear, recordCaseReference,
   assignAmbulance, assignHospital, ambulanceStatus, hospitalAcknowledge, hospitalAdmit, closeIncident,
-  attachPhoto, getPhotoPath, badRequest,
+  escalateUnresponsivePolice,
+  attachPhoto, getPhotoPath,
 };

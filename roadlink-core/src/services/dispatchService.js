@@ -1,8 +1,17 @@
+const config = require('../config');
 const { estimateMinutes } = require('./geo');
 
-const STALE_AFTER_MIN = 10;
+const staleAfterMin = Math.max(1, Math.round(config.staleLocationMin));
 
-const stale = (ts) => (ts ? Date.now() - new Date(ts).getTime() > STALE_AFTER_MIN * 60000 : true);
+const stale = (ts) => (ts ? Date.now() - new Date(ts).getTime() > staleAfterMin * 60000 : true);
+
+/**
+ * Ambulance ordering shared by the recommendation list and auto-dispatch: ambulances with a recent
+ * position first, then nearest. An ambulance whose last position is hours old is only chosen when no
+ * fresher one is free. Expects the aliases `a` (ambulances) and `i` (incidents).
+ */
+const AMBULANCE_ORDER_SQL = `(a.location_updated_at IS NULL OR a.location_updated_at < now() - make_interval(mins => ${staleAfterMin})),
+          a.location <-> i.location`;
 
 /** Nearest police unit to an incident. Prefers available units; falls back to the nearest busy one. */
 async function nearestPoliceUnit(db, incidentId, excludeIds = []) {
@@ -26,7 +35,7 @@ async function recommendAmbulances(db, incidentId, limit = 5) {
             ST_Distance(a.location, i.location) AS meters
      FROM ambulances a, incidents i
      WHERE i.id = $1 AND a.is_active AND a.is_available AND a.location IS NOT NULL
-     ORDER BY a.location <-> i.location
+     ORDER BY ${AMBULANCE_ORDER_SQL}
      LIMIT $2`, [incidentId, limit]);
   return rows.map((r) => ({
     id: r.id,
@@ -60,4 +69,4 @@ async function recommendHospitals(db, incidentId, limit = 5) {
   }));
 }
 
-module.exports = { nearestPoliceUnit, recommendAmbulances, recommendHospitals };
+module.exports = { AMBULANCE_ORDER_SQL, nearestPoliceUnit, recommendAmbulances, recommendHospitals };
