@@ -73,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 22),
                     Text('ROADLINK', style: Theme.of(context).textTheme.displayLarge),
                     Text(widget.title.toUpperCase(),
-                        style: GoogleFonts.rajdhani(fontSize: 16, letterSpacing: 6, color: AppColors.amber, fontWeight: FontWeight.w700)),
+                        style: RoadLinkFonts.display(fontSize: 16, letterSpacing: 6, color: AppColors.amber, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 6),
                     Text(widget.subtitle, style: Theme.of(context).textTheme.bodyMedium),
                     const SizedBox(height: 28),
@@ -103,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
                         child: _busy
                             ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                            : Text('SIGN IN', style: GoogleFonts.rajdhani(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 2, color: Colors.white)),
+                            : Text('SIGN IN', style: RoadLinkFonts.display(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 2, color: Colors.white)),
                       ),
                     ),
                   ],

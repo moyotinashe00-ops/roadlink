@@ -210,7 +210,7 @@ class _Primary extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon),
-        label: Text(label, style: GoogleFonts.rajdhani(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: 1.4)),
+        label: Text(label, style: RoadLinkFonts.display(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: 1.4)),
         style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
       ),
     );
@@ -301,7 +301,7 @@ class _SceneSheetState extends State<_SceneSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('SCENE DETAILS', style: GoogleFonts.rajdhani(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+          Text('SCENE DETAILS', style: RoadLinkFonts.display(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
           const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -309,7 +309,7 @@ class _SceneSheetState extends State<_SceneSheet> {
               const Text('Confirmed patients'),
               Row(children: [
                 IconButton(onPressed: _victims > 0 ? () => setState(() => _victims--) : null, icon: const Icon(Icons.remove_circle_outline)),
-                Text('$_victims', style: GoogleFonts.rajdhani(fontSize: 24, fontWeight: FontWeight.w800)),
+                Text('$_victims', style: RoadLinkFonts.display(fontSize: 24, fontWeight: FontWeight.w800)),
                 IconButton(onPressed: () => setState(() => _victims++), icon: const Icon(Icons.add_circle_outline)),
               ]),
             ],

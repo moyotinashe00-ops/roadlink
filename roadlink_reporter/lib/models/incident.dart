@@ -18,7 +18,7 @@ extension SeverityX on Severity {
         Severity.minor => AppColors.safe,
         Severity.serious => AppColors.amber,
         Severity.critical => AppColors.alert,
-        Severity.fatal => const Color(0xFF7A1620),
+        Severity.fatal => const Color(0xFF6B1F0E),
       };
 
   IconData get icon => switch (this) {

@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text('ROADLINK', style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 28)),
                         Text(
                           'REPORTER',
-                          style: GoogleFonts.rajdhani(
+                          style: RoadLinkFonts.display(
                             fontSize: 15,
                             letterSpacing: 4,
                             color: AppColors.amber,
@@ -121,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: const Icon(Icons.call, color: AppColors.amber),
                     label: Text(
                       'CALL DISPATCH CENTRE',
-                      style: GoogleFonts.rajdhani(fontWeight: FontWeight.w700, letterSpacing: 1.2, color: AppColors.amber),
+                      style: RoadLinkFonts.display(fontWeight: FontWeight.w700, letterSpacing: 1.2, color: AppColors.amber),
                     ),
                     style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                   ),
@@ -163,7 +163,7 @@ class _ActiveReportCard extends StatelessWidget {
                 children: [
                   Text(
                     'Active report ${incident.referenceNumber ?? ''}',
-                    style: GoogleFonts.rajdhani(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textPrimary),
+                    style: RoadLinkFonts.display(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textPrimary),
                   ),
                   Text(incident.status.label, style: GoogleFonts.ibmPlexSans(fontSize: 13, color: AppColors.textMuted)),
                 ],

@@ -195,15 +195,15 @@ class _ReportScreenState extends State<ReportScreen> {
                 onRetry: _captureLocation,
               ),
               const SizedBox(height: 24),
-              Text('How many people are involved?', style: GoogleFonts.rajdhani(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              Text('How many people are involved?', style: RoadLinkFonts.display(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
               const SizedBox(height: 10),
               _VictimStepper(value: _victimCount, onChanged: (v) => setState(() => _victimCount = v)),
               const SizedBox(height: 24),
-              Text('How serious does it look?', style: GoogleFonts.rajdhani(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              Text('How serious does it look?', style: RoadLinkFonts.display(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
               const SizedBox(height: 10),
               SeveritySelector(value: _severity, onChanged: (s) => setState(() => _severity = s)),
               const SizedBox(height: 24),
-              Text('Description (optional)', style: GoogleFonts.rajdhani(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              Text('Description (optional)', style: RoadLinkFonts.display(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
               const SizedBox(height: 10),
               TextField(
                 controller: _descriptionController,
@@ -254,7 +254,7 @@ class _ReportScreenState extends State<ReportScreen> {
                         )
                       : Text(
                           'SEND REPORT',
-                          style: GoogleFonts.rajdhani(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: Colors.white),
+                          style: RoadLinkFonts.display(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: Colors.white),
                         ),
                 ),
               ),
@@ -337,7 +337,7 @@ class _VictimStepper extends StatelessWidget {
             onPressed: value > 1 ? () => onChanged(value - 1) : null,
             icon: const Icon(Icons.remove_circle_outline, color: AppColors.amber),
           ),
-          Text('$value', style: GoogleFonts.rajdhani(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+          Text('$value', style: RoadLinkFonts.display(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
           IconButton(
             onPressed: () => onChanged(value + 1),
             icon: const Icon(Icons.add_circle_outline, color: AppColors.amber),

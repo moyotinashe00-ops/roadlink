@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 
 /// The single primary action of RoadLink Reporter (SRS CIT-01): one
@@ -72,7 +71,7 @@ class _PulseSosButtonState extends State<PulseSosButton> with SingleTickerProvid
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.alert, Color(0xFFB2101F)],
+          colors: [AppColors.alert, Color(0xFFD43410)],
         ),
         boxShadow: [
           BoxShadow(color: AppColors.alert.withValues(alpha: 0.55), blurRadius: 30, spreadRadius: 4),
@@ -81,7 +80,7 @@ class _PulseSosButtonState extends State<PulseSosButton> with SingleTickerProvid
       child: Text(
         widget.label,
         textAlign: TextAlign.center,
-        style: GoogleFonts.rajdhani(
+        style: RoadLinkFonts.display(
           fontSize: 22,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.4,

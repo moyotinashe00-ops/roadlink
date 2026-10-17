@@ -22,7 +22,7 @@ extension SeverityX on Severity {
         Severity.minor => AppColors.safe,
         Severity.serious => AppColors.amber,
         Severity.critical => AppColors.alert,
-        Severity.fatal => const Color(0xFFB3122A),
+        Severity.fatal => const Color(0xFFA8260F),
       };
   static Severity fromApi(String? v) =>
       Severity.values.firstWhere((s) => s.name == v, orElse: () => Severity.minor);

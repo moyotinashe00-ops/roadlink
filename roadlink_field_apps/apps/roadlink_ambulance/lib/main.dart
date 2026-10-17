@@ -16,7 +16,7 @@ class AmbulanceApp extends StatelessWidget {
       role: FieldRole.ambulance,
       title: 'Ambulance',
       subtitle: 'Crew console',
-      accent: const Color(0xFFFF2E43),
+      accent: const Color(0xFFFF4B1F),
       icon: Icons.emergency_rounded,
       home: (controller) => AmbulanceHome(controller: controller),
     );

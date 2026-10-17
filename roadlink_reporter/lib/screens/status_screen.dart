@@ -73,7 +73,7 @@ class _StatusScreenState extends State<StatusScreen> {
                     const SizedBox(height: 4),
                     Text(
                       _incident.referenceNumber ?? '—',
-                      style: GoogleFonts.rajdhani(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.amber),
+                      style: RoadLinkFonts.display(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.amber),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -113,7 +113,7 @@ class _StatusScreenState extends State<StatusScreen> {
               const SizedBox(height: 28),
               Text(
                 'RESPONSE TIMELINE',
-                style: GoogleFonts.rajdhani(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: AppColors.textMuted),
+                style: RoadLinkFonts.display(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: AppColors.textMuted),
               ),
               const SizedBox(height: 16),
               StatusTimeline(current: _incident.status),

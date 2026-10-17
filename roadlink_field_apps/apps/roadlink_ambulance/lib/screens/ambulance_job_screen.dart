@@ -124,7 +124,7 @@ class _JobView extends StatelessWidget {
               if (incident.isApproximate) _Callout('Location is approximate (USSD report near "${incident.locationLabel ?? 'an area'}"). Dispatch is confirming the exact spot.', AppColors.amber),
               if (incident.hazardNotes != null) _Callout('HAZARD: ${incident.hazardNotes}', AppColors.amber),
               if (incident.police?.state == 'onScene' || incident.police?.state == 'cleared')
-                _Callout('Police are on scene (${incident.police!.name}).', const Color(0xFF3AA0FF)),
+                _Callout('Police are on scene (${incident.police!.name}).', const Color(0xFF4C8DFF)),
               if (incident.description.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Text(incident.description, style: GoogleFonts.ibmPlexSans(color: AppColors.textMuted)),
@@ -201,7 +201,7 @@ class _HospitalBlock extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('RECEIVING HOSPITAL', style: GoogleFonts.ibmPlexSans(fontSize: 10, letterSpacing: 1.6, color: AppColors.textMuted)),
-                Text(h.name, style: GoogleFonts.rajdhani(fontSize: 20, fontWeight: FontWeight.w700)),
+                Text(h.name, style: RoadLinkFonts.display(fontSize: 20, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
@@ -234,7 +234,7 @@ class _HandedOver extends StatelessWidget {
                     if (ok && context.mounted) Navigator.of(context).pop();
                   },
             icon: const Icon(Icons.check_circle),
-            label: Text('READY FOR NEXT JOB', style: GoogleFonts.rajdhani(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: 1.4)),
+            label: Text('READY FOR NEXT JOB', style: RoadLinkFonts.display(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: 1.4)),
             style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18), backgroundColor: AppColors.safe, foregroundColor: Colors.black),
           ),
         ),

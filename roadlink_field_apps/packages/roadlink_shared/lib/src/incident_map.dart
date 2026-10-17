@@ -58,9 +58,9 @@ class IncidentMap extends StatelessWidget {
                     child: Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: const Color(0xFF3AA0FF),
+                        color: const Color(0xFF4C8DFF),
                         border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: const [BoxShadow(color: Color(0xFF3AA0FF), blurRadius: 12)],
+                        boxShadow: const [BoxShadow(color: Color(0xFF4C8DFF), blurRadius: 12)],
                       ),
                     ),
                   ),

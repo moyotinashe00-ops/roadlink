@@ -16,7 +16,7 @@ class PoliceApp extends StatelessWidget {
       role: FieldRole.police,
       title: 'Police',
       subtitle: 'Traffic unit console',
-      accent: const Color(0xFF3AA0FF),
+      accent: const Color(0xFF4C8DFF),
       icon: Icons.local_police_rounded,
       home: (controller) => PoliceHome(controller: controller),
     );

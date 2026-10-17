@@ -82,7 +82,7 @@ class SeverityBadge extends StatelessWidget {
       ),
       child: Text(
         severity.label.toUpperCase(),
-        style: GoogleFonts.rajdhani(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: c),
+        style: RoadLinkFonts.display(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: c),
       ),
     );
   }
@@ -146,7 +146,7 @@ class DutyToggle extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: GoogleFonts.rajdhani(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                Text(label, style: RoadLinkFonts.display(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                 Text(available ? 'Available for dispatch' : 'Not available — dispatch will skip you',
                     style: GoogleFonts.ibmPlexSans(fontSize: 12, color: color)),
               ],
@@ -172,7 +172,7 @@ class FactTile extends StatelessWidget {
       children: [
         Text(label.toUpperCase(), style: GoogleFonts.ibmPlexSans(fontSize: 10, letterSpacing: 1.6, color: AppColors.textMuted)),
         const SizedBox(height: 2),
-        Text(value, style: GoogleFonts.rajdhani(fontSize: 20, fontWeight: FontWeight.w700, color: valueColor ?? AppColors.textPrimary)),
+        Text(value, style: RoadLinkFonts.display(fontSize: 20, fontWeight: FontWeight.w700, color: valueColor ?? AppColors.textPrimary)),
       ],
     );
   }
@@ -247,7 +247,7 @@ class _HoldToConfirmButtonState extends State<HoldToConfirmButton> with SingleTi
                     children: [
                       Text(widget.label,
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.rajdhani(
+                          style: RoadLinkFonts.display(
                               fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: enabled ? Colors.white : AppColors.textMuted)),
                       if (enabled)
                         Text('HOLD TO CONFIRM', style: GoogleFonts.ibmPlexSans(fontSize: 10, letterSpacing: 2, color: AppColors.textMuted)),
@@ -285,7 +285,7 @@ class NavigateButton extends StatelessWidget {
     return OutlinedButton.icon(
       onPressed: () => openNavigation(lat, lng),
       icon: const Icon(Icons.navigation_rounded),
-      label: Text(label, style: GoogleFonts.rajdhani(fontWeight: FontWeight.w700, letterSpacing: 1.1, fontSize: 16)),
+      label: Text(label, style: RoadLinkFonts.display(fontWeight: FontWeight.w700, letterSpacing: 1.1, fontSize: 16)),
       style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
     );
   }
@@ -351,7 +351,7 @@ Future<void> showTimelineSheet(BuildContext context, RoadLinkApi api, Incident i
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text('TIMELINE · ${incident.referenceNumber}', style: GoogleFonts.rajdhani(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                child: Text('TIMELINE · ${incident.referenceNumber}', style: RoadLinkFonts.display(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
               ),
               body,
             ],

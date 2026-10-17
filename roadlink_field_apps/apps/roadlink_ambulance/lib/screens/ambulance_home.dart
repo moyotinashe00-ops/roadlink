@@ -95,12 +95,12 @@ class _AmbulanceHomeState extends State<AmbulanceHome> {
                     if (handedOver.isNotEmpty) ...[
                       const SizedBox(height: 18),
                       Text('HANDED OVER — AWAITING HOSPITAL',
-                          style: GoogleFonts.rajdhani(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 2, color: AppColors.textMuted)),
+                          style: RoadLinkFonts.display(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 2, color: AppColors.textMuted)),
                       const SizedBox(height: 8),
                       for (final j in handedOver)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: Text(j.referenceNumber, style: GoogleFonts.rajdhani(fontSize: 18, fontWeight: FontWeight.w700)),
+                          title: Text(j.referenceNumber, style: RoadLinkFonts.display(fontSize: 18, fontWeight: FontWeight.w700)),
                           subtitle: Text(j.hospital?.name ?? 'Hospital', style: const TextStyle(color: AppColors.textMuted)),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => _open(j.id),
@@ -135,7 +135,7 @@ class _Standby extends StatelessWidget {
         children: [
           Icon(Icons.radar, size: 58, color: available ? accent : AppColors.textMuted),
           const SizedBox(height: 14),
-          Text(available ? 'STANDING BY' : 'OFF DUTY', style: GoogleFonts.rajdhani(fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: 3)),
+          Text(available ? 'STANDING BY' : 'OFF DUTY', style: RoadLinkFonts.display(fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: 3)),
           const SizedBox(height: 8),
           Text(
             available
@@ -175,19 +175,19 @@ class _JobCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('ACTIVE JOB', style: GoogleFonts.rajdhani(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 2, color: accent)),
+                Text('ACTIVE JOB', style: RoadLinkFonts.display(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 2, color: accent)),
                 SeverityBadge(incident.severity),
               ],
             ),
             const SizedBox(height: 6),
-            Text(incident.referenceNumber, style: GoogleFonts.rajdhani(fontSize: 30, fontWeight: FontWeight.w800)),
+            Text(incident.referenceNumber, style: RoadLinkFonts.display(fontSize: 30, fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
             Text(
               '${incident.patients} patient${incident.patients == 1 ? '' : 's'} · ${jobStateLabel(incident.ambulance?.state)}',
               style: GoogleFonts.ibmPlexSans(color: AppColors.textMuted),
             ),
             const SizedBox(height: 10),
-            Text('OPEN JOB  →', style: GoogleFonts.rajdhani(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 2)),
+            Text('OPEN JOB  →', style: RoadLinkFonts.display(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 2)),
           ],
         ),
       ),
@@ -204,13 +204,13 @@ class _NewJobDialog extends StatelessWidget {
     return AlertDialog(
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.alert, width: 2)),
-      title: Text('NEW EMERGENCY JOB', style: GoogleFonts.rajdhani(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.alert, letterSpacing: 1.4)),
+      title: Text('NEW EMERGENCY JOB', style: RoadLinkFonts.display(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.alert, letterSpacing: 1.4)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(incident.referenceNumber, style: GoogleFonts.rajdhani(fontSize: 26, fontWeight: FontWeight.w800)),
+            Text(incident.referenceNumber, style: RoadLinkFonts.display(fontSize: 26, fontWeight: FontWeight.w800)),
             SeverityBadge(incident.severity),
           ]),
           const SizedBox(height: 12),

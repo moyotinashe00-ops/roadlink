@@ -130,7 +130,7 @@ class _PoliceHomeState extends State<PoliceHome> {
                     ),
                     const SizedBox(height: 24),
                     Text('ACTIVE INCIDENTS  ${items.length}',
-                        style: GoogleFonts.rajdhani(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 2, color: AppColors.textMuted)),
+                        style: RoadLinkFonts.display(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 2, color: AppColors.textMuted)),
                     const SizedBox(height: 12),
                     if (items.isEmpty)
                       Container(
@@ -181,13 +181,13 @@ class _IncidentTile extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(incident.referenceNumber, style: GoogleFonts.rajdhani(fontSize: 22, fontWeight: FontWeight.w800)),
+                Text(incident.referenceNumber, style: RoadLinkFonts.display(fontSize: 22, fontWeight: FontWeight.w800)),
                 SeverityBadge(incident.severity),
               ],
             ),
             const SizedBox(height: 6),
             Text(policeStateLabel(incident.police?.state),
-                style: GoogleFonts.rajdhani(fontSize: 16, fontWeight: FontWeight.w700, color: alerted ? AppColors.alert : accent)),
+                style: RoadLinkFonts.display(fontSize: 16, fontWeight: FontWeight.w700, color: alerted ? AppColors.alert : accent)),
             const SizedBox(height: 8),
             Text(
               '${incident.patients} patient${incident.patients == 1 ? '' : 's'}'
@@ -214,7 +214,7 @@ class _IncomingAlertDialog extends StatelessWidget {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('ACCIDENT NEARBY', style: GoogleFonts.rajdhani(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.alert, letterSpacing: 1.4)),
+          Text('ACCIDENT NEARBY', style: RoadLinkFonts.display(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.alert, letterSpacing: 1.4)),
           SeverityBadge(incident.severity),
         ],
       ),
@@ -222,7 +222,7 @@ class _IncomingAlertDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(incident.referenceNumber, style: GoogleFonts.rajdhani(fontSize: 26, fontWeight: FontWeight.w800)),
+          Text(incident.referenceNumber, style: RoadLinkFonts.display(fontSize: 26, fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
           Row(children: [
             FactTile('Patients', '${incident.patients}'),
