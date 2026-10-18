@@ -8,7 +8,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: roadlink
-    ports: ["5432:5432"]
+    # Host port 5433, so it does not clash with a PostgreSQL already installed on this machine (5432).
+    # The API reaches the database inside Docker at db:5432, so nothing else needs to change.
+    ports: ["5433:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d roadlink"]

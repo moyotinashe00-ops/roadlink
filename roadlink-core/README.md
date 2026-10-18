@@ -27,6 +27,10 @@ docker compose exec api node db/migrate.js --seed   # demo hospitals, ambulances
 curl localhost:3000/health
 ```
 
+The database is published on host port **5433** (not 5432), so it does not clash with a PostgreSQL already installed on
+your machine. Stop any locally running `npm start` first: it uses the same port 3000 as the container. Docker uses its own
+database, so the `.env` `DATABASE_URL` is not used. `docker compose down` keeps your data; `docker compose down -v` wipes it.
+
 **Option B: local**
 ```bash
 # needs PostgreSQL 14+ with the PostGIS extension available
