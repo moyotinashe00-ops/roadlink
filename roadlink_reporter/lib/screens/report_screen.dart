@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -32,6 +32,7 @@ class _ReportScreenState extends State<ReportScreen> {
   int _victimCount = 1;
   Severity _severity = Severity.minor;
   XFile? _photo;
+  Uint8List? _photoBytes; // kept in memory: a browser cannot read a file path
   bool _submitting = false;
 
   @override
@@ -68,7 +69,13 @@ class _ReportScreenState extends State<ReportScreen> {
 
   Future<void> _pickPhoto(ImageSource source) async {
     final file = await _picker.pickImage(source: source, maxWidth: 1600, imageQuality: 80);
-    if (file != null) setState(() => _photo = file);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _photo = file;
+      _photoBytes = bytes;
+    });
   }
 
   void _showPhotoSheet() {
@@ -117,6 +124,7 @@ class _ReportScreenState extends State<ReportScreen> {
       severity: _severity,
       description: _descriptionController.text.trim(),
       photoPath: _photo?.path,
+      photoBytes: _photoBytes,
       status: IncidentStatus.reported,
       createdAt: DateTime.now(),
     );
@@ -236,7 +244,7 @@ class _ReportScreenState extends State<ReportScreen> {
                         )
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                          child: Image.file(File(_photo!.path), fit: BoxFit.cover, width: double.infinity),
+                          child: Image.memory(_photoBytes!, fit: BoxFit.cover, width: double.infinity),
                         ),
                 ),
               ),

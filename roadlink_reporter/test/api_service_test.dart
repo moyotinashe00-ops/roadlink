@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -6,12 +7,13 @@ import 'package:http/testing.dart';
 import 'package:roadlink_reporter/models/incident.dart';
 import 'package:roadlink_reporter/services/api_service.dart';
 
-Incident _draft() => Incident(
+Incident _draft({Uint8List? photo}) => Incident(
       latitude: -17.8292,
       longitude: 31.0522,
       victimCount: 2,
       severity: Severity.serious,
       description: 'Two cars collided',
+      photoBytes: photo,
       status: IncidentStatus.reported,
       createdAt: DateTime.utc(2026, 10, 16),
     );
@@ -95,6 +97,44 @@ void main() {
         isA<ApiException>().having((e) => e.message, 'message', contains('502')),
       ),
     );
+  });
+
+  test('a photo is uploaded from bytes with its real image type', () async {
+    final requests = <http.Request>[];
+    final api = ApiService(
+      baseUrl: 'http://core.test',
+      client: MockClient((request) async {
+        requests.add(request);
+        if (request.url.path.endsWith('/photo')) return _json({'ok': true}, 201);
+        return _json(_publicView(), 201);
+      }),
+    );
+    // The first bytes of a PNG file. The filename is deliberately not used to decide the type.
+    final png = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00]);
+
+    await api.submitIncident(_draft(photo: png));
+
+    expect(requests, hasLength(2));
+    final upload = requests[1];
+    expect(upload.url.path, '/api/v1/incidents/6f1c2d3e-0000-4000-8000-000000000001/photo');
+    expect(upload.headers['content-type'], startsWith('multipart/form-data'));
+    expect(upload.body, contains('name="photo"'));
+    expect(upload.body, contains('image/png'));
+  });
+
+  test('a report without a photo makes no upload request', () async {
+    var calls = 0;
+    final api = ApiService(
+      baseUrl: 'http://core.test',
+      client: MockClient((request) async {
+        calls += 1;
+        return _json(_publicView(), 201);
+      }),
+    );
+
+    await api.submitIncident(_draft());
+
+    expect(calls, 1);
   });
 
   test('every status Core can send is understood by the app', () {

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
@@ -77,6 +79,10 @@ class Incident {
   final Severity severity;
   final String description;
   final String? photoPath;
+
+  /// The chosen photo held in memory. Uploaded as bytes so the same code works in a browser,
+  /// where there is no file path to read. Never sent as JSON.
+  final Uint8List? photoBytes;
   final IncidentStatus status;
   final DateTime createdAt;
 
@@ -89,6 +95,7 @@ class Incident {
     required this.severity,
     required this.description,
     this.photoPath,
+    this.photoBytes,
     required this.status,
     required this.createdAt,
   });
@@ -107,6 +114,7 @@ class Incident {
       severity: severity,
       description: description,
       photoPath: photoPath,
+      photoBytes: photoBytes,
       status: status ?? this.status,
       createdAt: createdAt,
     );

@@ -36,6 +36,39 @@ flutter run --dart-define=ROADLINK_API=http://10.0.2.2:3000   # Android emulator
 
 Demo accounts use the `SEED_PASSWORD` from `.env`. See each folder's README for details.
 
+## Run the Flutter apps in a browser
+
+Each app can run in Chrome with `flutter run -d chrome`. The backend must be running first (see Quick start). Give each
+app its own port, because the Docker setup only allows browser requests from ports 5173-5177 and 5180-5182:
+
+```powershell
+# Citizen app (Reporter)
+cd roadlink_reporter
+flutter pub get
+flutter run -d chrome --web-port 5180
+
+# Police app
+cd roadlink_field_apps\apps\roadlink_police
+flutter pub get
+flutter run -d chrome --web-port 5181
+
+# Ambulance app
+cd roadlink_field_apps\apps\roadlink_ambulance
+flutter pub get
+flutter run -d chrome --web-port 5182
+```
+
+In a browser the apps talk to `http://localhost:3000` by default. To use another server, add
+`--dart-define=ROADLINK_API=http://host:3000`. Demo logins for the Police and Ambulance apps are
+`police1@roadlink.zw` and `ambulance1@roadlink.zw` (password from `SEED_PASSWORD`).
+
+Things that behave differently in a browser:
+- Chrome asks for **location permission**; allow it, or the report screen keeps waiting for GPS. It only works on
+  `localhost` or HTTPS.
+- **Photos** open a file picker instead of the camera on a computer.
+- The "call dispatch" button does nothing on a computer that has no phone app.
+- Push notifications are not used in the browser. Live updates still arrive through the socket connection.
+
 ## Checks
 
 ```bash

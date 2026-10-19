@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'field_controller.dart';
@@ -17,6 +18,12 @@ class FieldAppShell extends StatefulWidget {
   final Widget Function(FieldController controller) home;
 
   /// Set at build time:  flutter run --dart-define=ROADLINK_API=http://192.168.1.10:3000
+  /// Defaults: 10.0.2.2 on the Android emulator (its alias for the host machine), localhost in a browser.
+  static const String _defaultBaseUrl = String.fromEnvironment(
+    'ROADLINK_API',
+    defaultValue: kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000',
+  );
+
   final String baseUrl;
 
   const FieldAppShell({
@@ -27,7 +34,7 @@ class FieldAppShell extends StatefulWidget {
     required this.accent,
     required this.icon,
     required this.home,
-    this.baseUrl = const String.fromEnvironment('ROADLINK_API', defaultValue: 'http://10.0.2.2:3000'),
+    this.baseUrl = _defaultBaseUrl,
   });
 
   @override

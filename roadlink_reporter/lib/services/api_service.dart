@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 
 import '../models/incident.dart';
 
@@ -30,9 +32,15 @@ class ApiService {
     String? baseUrl,
     http.Client? client,
     this.pollInterval = const Duration(seconds: 5),
-  })  : baseUrl = (baseUrl ?? const String.fromEnvironment('ROADLINK_API'))
-            .replaceFirst(RegExp(r'/+$'), ''),
+  })  : baseUrl = (baseUrl ?? _defaultBaseUrl).replaceFirst(RegExp(r'/+$'), ''),
         _client = client ?? http.Client();
+
+  /// Set at build time with --dart-define=ROADLINK_API=http://host:3000. A browser build falls back to a
+  /// Core running on the same machine, so `flutter run -d chrome` works without extra flags.
+  static const String _defaultBaseUrl = String.fromEnvironment(
+    'ROADLINK_API',
+    defaultValue: kIsWeb ? 'http://localhost:3000' : '',
+  );
 
   final String baseUrl;
   final http.Client _client;
@@ -62,13 +70,22 @@ class ApiService {
       throw ApiException('RoadLink Core created the report without an incident ID.');
     }
 
-    final photoPath = draft.photoPath;
-    if (photoPath != null && photoPath.isNotEmpty) {
+    // The photo travels as bytes, not as a file path: a browser has no file system to read a path from.
+    final photoBytes = draft.photoBytes;
+    if (photoBytes != null && photoBytes.isNotEmpty) {
       try {
+        final type = _imageType(photoBytes);
         final request = http.MultipartRequest(
           'POST',
           _apiUri('/incidents/${Uri.encodeComponent(saved.id!)}/photo'),
-        )..files.add(await http.MultipartFile.fromPath('photo', photoPath));
+        )..files.add(
+            http.MultipartFile.fromBytes(
+              'photo',
+              photoBytes,
+              filename: type.subtype == 'jpeg' ? 'photo.jpg' : 'photo.${type.subtype}',
+              contentType: type,
+            ),
+          );
         final photoResponse = await _send(() => _client.send(request));
         if (photoResponse.statusCode < 200 || photoResponse.statusCode >= 300) {
           throw ApiException(
@@ -143,11 +160,25 @@ class ApiService {
       rethrow;
     } on TimeoutException {
       throw ApiException('RoadLink Core did not respond in time.');
-    } on SocketException catch (error) {
-      throw ApiException('Could not connect to RoadLink Core: $error');
     } on http.ClientException catch (error) {
       throw ApiException('RoadLink Core request failed: $error');
+    } on Exception catch (error) {
+      // On phones a network failure is a SocketException from dart:io, which does not exist in a browser.
+      throw ApiException('Could not connect to RoadLink Core: $error');
     }
+  }
+
+  /// Works out the real image type from the first bytes, because a browser file has no extension to go by.
+  static MediaType _imageType(Uint8List b) {
+    if (b.length > 3 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) {
+      return MediaType('image', 'png');
+    }
+    if (b.length > 11 &&
+        b[0] == 0x52 && b[1] == 0x49 && b[2] == 0x46 && b[3] == 0x46 &&
+        b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50) {
+      return MediaType('image', 'webp');
+    }
+    return MediaType('image', 'jpeg');
   }
 
   /// RoadLink Core errors look like {"error": {"code": "...", "message": "..."}}.
