@@ -9,6 +9,7 @@ The apps never talk to each other directly: they all go through one API.
 | [`roadlink-core`](roadlink-core) | The backend API: incidents, dispatch, real-time updates, USSD, push | Node.js, Express 5, PostgreSQL + PostGIS, Socket.IO |
 | [`roadlink_reporter`](roadlink_reporter) | Citizen app: SOS button, report, live status | Flutter |
 | [`roadlink_field_apps`](roadlink_field_apps) | Police and ambulance crew apps (shared package) | Flutter |
+| [`roadlink-dispatch`](roadlink-dispatch) | Control-room console: live map, incident list, send ambulance and hospital, phoned-in reports | React + Vite + Leaflet |
 | [`roadlink-hospital`](roadlink-hospital) | Hospital emergency-department board | React + Vite |
 
 ## Quick start
@@ -27,6 +28,11 @@ npm start                         # http://localhost:3000
 cd roadlink-hospital
 npm install
 npm run dev                       # http://localhost:5173, sign in as hospital1@roadlink.zw
+
+# 2b. Dispatcher console (third terminal)
+cd roadlink-dispatch
+npm install
+npm run dev                       # http://localhost:5176, sign in as dispatcher@roadlink.zw
 
 # 3. Mobile apps (point them at your machine)
 cd roadlink_reporter
@@ -75,6 +81,7 @@ Things that behave differently in a browser:
 cd roadlink-core     && npm run lint && npm test     # 62 integration tests on a real PostGIS database
 cd roadlink-hospital && npm run lint && npm test && npm run build
 cd roadlink-hospital && npm run contract             # needs the backend running; checks the dashboard against the live API
+cd roadlink-dispatch && npm run lint && npm test && npm run build && npm run contract
 cd roadlink_reporter && flutter analyze && flutter test
 ```
 
