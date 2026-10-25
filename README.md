@@ -78,7 +78,7 @@ Things that behave differently in a browser:
 ## Checks
 
 ```bash
-cd roadlink-core     && npm run lint && npm test     # 62 integration tests on a real PostGIS database
+cd roadlink-core     && npm run lint && npm test     # 73 integration tests on a real PostGIS database
 cd roadlink-hospital && npm run lint && npm test && npm run build
 cd roadlink-hospital && npm run contract             # needs the backend running; checks the dashboard against the live API
 cd roadlink-dispatch && npm run lint && npm test && npm run build && npm run contract
