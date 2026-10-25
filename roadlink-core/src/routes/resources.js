@@ -13,10 +13,14 @@ const coords = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(
 const pt = (alias) => `ST_Y(${alias}.location::geometry) AS lat, ST_X(${alias}.location::geometry) AS lng`;
 
 // ---- Hospitals -------------------------------------------------------------
+// An administrator can ask for deactivated records too (?all=1), so a vehicle or unit switched off by mistake can be switched on again.
+const wantsAll = (req) => req.query.all === '1' && req.user && req.user.role === 'admin';
+
 router.get('/hospitals', async (req, res) => {
+  const all = wantsAll(req);
   const { rows } = await query(
-    `SELECT h.id, h.name, h.contact_number, h.trauma_bays_total, h.trauma_bays_free, h.capacity_updated_at, ${pt('h')}
-     FROM hospitals h WHERE h.is_active ORDER BY h.name`);
+    `SELECT h.id, h.name, h.is_active, h.contact_number, h.trauma_bays_total, h.trauma_bays_free, h.capacity_updated_at, ${pt('h')}
+     FROM hospitals h WHERE ($1::boolean OR h.is_active) ORDER BY h.name`, [all]);
   res.json({ hospitals: rows });
 });
 
@@ -37,9 +41,10 @@ router.patch('/hospitals/me/capacity', requireRole('hospital'),
 
 // ---- Ambulances ------------------------------------------------------------
 router.get('/ambulances', requireRole('dispatcher', 'admin'), async (req, res) => {
+  const all = wantsAll(req);
   const { rows } = await query(
-    `SELECT a.id, a.plate_number, a.provider, a.is_available, a.location_updated_at, ${pt('a')}
-     FROM ambulances a WHERE a.is_active ORDER BY a.plate_number`);
+    `SELECT a.id, a.plate_number, a.provider, a.is_active, a.is_available, a.location_updated_at, ${pt('a')}
+     FROM ambulances a WHERE ($1::boolean OR a.is_active) ORDER BY a.plate_number`, [all]);
   res.json({ ambulances: rows });
 });
 
@@ -78,9 +83,10 @@ router.patch('/ambulances/me/availability', requireRole('ambulance'),
 
 // ---- Police units ----------------------------------------------------------
 router.get('/police-units', requireRole('dispatcher', 'admin'), async (req, res) => {
+  const all = wantsAll(req);
   const { rows } = await query(
-    `SELECT p.id, p.name, p.station, p.coverage_area, p.is_available, p.location_updated_at, ${pt('p')}
-     FROM police_units p WHERE p.is_active ORDER BY p.name`);
+    `SELECT p.id, p.name, p.station, p.coverage_area, p.is_active, p.is_available, p.location_updated_at, ${pt('p')}
+     FROM police_units p WHERE ($1::boolean OR p.is_active) ORDER BY p.name`, [all]);
   res.json({ police_units: rows });
 });
 

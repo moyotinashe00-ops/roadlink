@@ -69,4 +69,22 @@ async function recommendHospitals(db, incidentId, limit = 5) {
   }));
 }
 
-module.exports = { AMBULANCE_ORDER_SQL, nearestPoliceUnit, recommendAmbulances, recommendHospitals };
+/** Police units for the dispatcher to choose from: available ones first, then nearest. */
+async function recommendPolice(db, incidentId, limit = 6) {
+  const { rows } = await db.query(
+    `SELECT p.id, p.name, p.is_available, p.location_updated_at, ST_Distance(p.location, i.location) AS meters
+     FROM police_units p, incidents i
+     WHERE i.id = $1 AND p.is_active AND p.location IS NOT NULL
+     ORDER BY p.is_available DESC, p.location <-> i.location
+     LIMIT $2`, [incidentId, limit]);
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    is_available: r.is_available,
+    distance_m: Math.round(r.meters),
+    eta_minutes: estimateMinutes(r.meters),
+    location_stale: stale(r.location_updated_at),
+  }));
+}
+
+module.exports = { AMBULANCE_ORDER_SQL, nearestPoliceUnit, recommendAmbulances, recommendHospitals, recommendPolice };

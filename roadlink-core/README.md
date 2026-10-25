@@ -63,7 +63,7 @@ release builds do not, so use HTTPS in any real deployment. The app also uploads
 ## Tests
 
 ```bash
-npm test     # 62 integration tests against a REAL PostgreSQL + PostGIS database
+npm test     # 73 integration tests against a REAL PostgreSQL + PostGIS database
 ```
 Tests run against `TEST_DATABASE_URL` (default `postgres://postgres:postgres@localhost:5432/roadlink_test`) and
 **truncate every table**, so the harness refuses to start unless the database name ends in `_test`. They cover the full

@@ -173,6 +173,10 @@ router.put('/:id/case-reference', id, authenticate, police,
 // ---------------------------------------------------------------------------
 const dispatcher = requireRole('dispatcher', 'admin');
 
+router.post('/:id/police', id, authenticate, dispatcher,
+  validate(z.object({ police_unit_id: z.uuid().optional() })),
+  async (req, res) => rowOut(req, res, await svc.assignPolice(req.params.id, req.user, req.valid.body.police_unit_id)));
+
 router.post('/:id/ambulance', id, authenticate, dispatcher,
   validate(z.object({ ambulance_id: z.uuid().optional(), force: z.boolean().optional() })),
   async (req, res) => {

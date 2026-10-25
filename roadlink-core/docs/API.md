@@ -43,7 +43,7 @@ These camelCase strings are exactly what the Flutter app's `IncidentStatus` enum
 | `GET /incidents?status=open\|all\|<status>&limit&offset` | staff | Scoped to the caller's role |
 | `GET /incidents/:id` | none or staff | Anonymous → public view; staff → full view if assigned |
 | `GET /incidents/:id/timeline` | staff | Full audit trail |
-| `GET /incidents/:id/recommendations` | dispatcher, admin | `{ ambulances[], hospitals[] }` ranked by distance; hospitals with no free trauma bays are ranked last |
+| `GET /incidents/:id/recommendations` | dispatcher, admin | `{ ambulances[], hospitals[], police[] }` ranked by distance; hospitals with no free trauma bays are ranked last |
 | `POST /incidents/:id/photo` | none | multipart field `photo` (JPEG/PNG/WebP, ≤ 5 MB, content verified). One per incident |
 | `GET /incidents/:id/photo` | assigned staff | |
 
@@ -60,6 +60,7 @@ These camelCase strings are exactly what the Flutter app's `IncidentStatus` enum
 ### Dispatcher
 | Path | Notes |
 |---|---|
+| `POST /incidents/:id/police` | `{ police_unit_id? }`  alert a police unit by hand: omit the id for the nearest other unit. Refused with `409 POLICE_ON_JOB` once a unit has accepted or arrived, `409 ALREADY_ASSIGNED` for the unit already alerted, `409 NO_POLICE_AVAILABLE` when nobody can be found. The unit passed over is never offered the incident again by automatic escalation. Police recommendations are `{ id, name, is_available, distance_m, eta_minutes, location_stale }`, available units first |
 | `POST /incidents/:id/ambulance` | `{ ambulance_id?, force? }` — omit `ambulance_id` to take the best available ambulance: recent GPS first, then nearest (a position older than `STALE_LOCATION_MIN` is only used when nothing fresher is free). Atomic: two dispatchers cannot claim the same ambulance (loser gets `409 AMBULANCE_UNAVAILABLE`). Replacing an ambulance that is already on scene or transporting is refused with `409 AMBULANCE_ON_JOB` unless `force: true` (for example a breakdown). Returns `eta_minutes` |
 | `POST /incidents/:id/hospital` | `{ hospital_id? }` — omit to take the top recommendation. Returns `eta_minutes` and `warnings[]` (e.g. no free bays) |
 | `POST /incidents/:id/close` | `{ outcome?: completed\|no_transport\|false_alarm\|cancelled, note? }`. `completed` requires hospital admission first; use `no_transport` when nobody is taken to hospital (for example a fatality). Releases ambulance and police unit |
@@ -115,7 +116,7 @@ Connect to the server root. Staff: `io(url, { auth: { token } })`. Citizens: con
 | `hospital:capacity` | dispatch/admin | hospital row |
 | `auth:expired` | the staff socket | sent just before the server disconnects it |
 
-`event` values on the socket: `incident_created`, `duplicate_report_merged`, `police_notified`, `police_accepted`, `police_declined`, `police_escalated`, `police_unresponsive`, `police_on_scene`, `scene_updated`, `scene_cleared`, `case_reference_recorded`, `ambulance_assigned`, `ambulance_en_route`, `ambulance_on_scene`, `ambulance_transporting`, `ambulance_arrived_at_hospital`, `hospital_notified`, `hospital_acknowledged`, `patient_admitted`, `incident_closed`, `photo_attached`.
+`event` values on the socket: `incident_created`, `duplicate_report_merged`, `police_notified`, `police_accepted`, `police_declined`, `police_assigned`, `police_escalated`, `police_unresponsive`, `police_on_scene`, `scene_updated`, `scene_cleared`, `case_reference_recorded`, `ambulance_assigned`, `ambulance_en_route`, `ambulance_on_scene`, `ambulance_transporting`, `ambulance_arrived_at_hospital`, `hospital_notified`, `hospital_acknowledged`, `patient_admitted`, `incident_closed`, `photo_attached`.
 
 The audit trail (`GET /incidents/:id/timeline`) is slightly finer-grained: it also distinguishes `ambulance_reassigned`, `hospital_reassigned` and `incident_closed_completed|no_transport|false_alarm|cancelled`.
 

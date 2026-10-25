@@ -228,11 +228,11 @@ async function getTimeline(id, user) {
 }
 
 async function getRecommendations(id) {
-  const { recommendAmbulances } = require('./dispatchService');
+  const { recommendAmbulances, recommendPolice } = require('./dispatchService');
   const row = await getIncidentRow(pool, id);
   if (!row) throw notFound('Incident not found');
-  const [ambulances, hospitals] = await Promise.all([recommendAmbulances(pool, id), recommendHospitals(pool, id)]);
-  return { ambulances, hospitals };
+  const [ambulances, hospitals, police] = await Promise.all([recommendAmbulances(pool, id), recommendHospitals(pool, id), recommendPolice(pool, id)]);
+  return { ambulances, hospitals, police };
 }
 
 // ---------------------------------------------------------------------------
@@ -276,6 +276,47 @@ const policeDecline = (id, user, reason) => mutate(id, async (db) => {
     after: async (row) => {
       notify.tellResource('police', as.police_unit_id, 'incident:unassigned', { incident_id: id });
       if (next) await notify.pushToResource('police', next.id, { title: 'Road accident reported near you', body: pushText(row), data: { type: 'incident_new', incident_id: id } });
+    },
+  };
+});
+
+/**
+ * A dispatcher alerts a police unit by hand: when automatic alerting found nobody, when the alerted unit is
+ * silent, or when a better placed unit is known. A unit that has already accepted cannot be taken away.
+ */
+const assignPolice = (id, user, policeUnitId) => mutate(id, async (db) => {
+  const as = await getAssignment(db, id);
+  if (as && as.police_unit_id && ['accepted', 'onScene'].includes(as.police_state)) {
+    throw conflict(`A police unit is already ${as.police_state === 'onScene' ? 'on scene' : 'on its way'}`, 'POLICE_ON_JOB');
+  }
+  const current = as ? as.police_unit_id : null;
+  let unit;
+  if (policeUnitId) {
+    unit = (await db.query('SELECT id, name FROM police_units WHERE id = $1 AND is_active', [policeUnitId])).rows[0];
+    if (!unit) throw notFound('Police unit not found');
+    if (unit.id === current && as.police_state === 'notified') throw conflict('That unit is already alerted', 'ALREADY_ASSIGNED');
+  } else {
+    unit = await nearestPoliceUnit(db, id, current ? [current] : []);
+    if (!unit) throw conflict('No police unit is available', 'NO_POLICE_AVAILABLE');
+  }
+  // A unit being replaced is remembered as passed over, so automatic escalation never hands the incident back to it.
+  const before = (as && as.declined_police_unit_ids) || [];
+  const declined = current && current !== unit.id ? [...before, current] : before;
+  await db.query(
+    `INSERT INTO assignments (incident_id, police_unit_id, police_state, police_assigned_at, declined_police_unit_ids, police_escalated)
+     VALUES ($1, $2, 'notified', now(), $3::uuid[], FALSE)
+     ON CONFLICT (incident_id) DO UPDATE SET police_unit_id = EXCLUDED.police_unit_id, police_state = 'notified',
+       police_assigned_at = now(), declined_police_unit_ids = EXCLUDED.declined_police_unit_ids, police_escalated = FALSE`,
+    [id, unit.id, declined]);
+  await setStatus(db, id, 'policeNotified', {
+    actor: actorOf(user), event: 'police_assigned',
+    note: `${unit.name}${current && current !== unit.id ? ' (replaces the previous unit)' : ''}`,
+  });
+  return {
+    event: 'police_assigned',
+    after: async (row) => {
+      if (current && current !== unit.id) notify.tellResource('police', current, 'incident:unassigned', { incident_id: id });
+      await notify.pushToResource('police', unit.id, { title: 'Road accident reported near you', body: pushText(row), data: { type: 'incident_new', incident_id: id } });
     },
   };
 });
@@ -566,7 +607,7 @@ async function getPhotoPath(id, user) {
 module.exports = {
   STATUS_ORDER, SEVERITY_ORDER, INCIDENT_SELECT,
   createIncident, getIncidentForUser, listIncidents, getTimeline, getRecommendations, getIncidentRow,
-  policeAccept, policeDecline, policeOnScene, sceneUpdate, policeClear, recordCaseReference,
+  policeAccept, policeDecline, assignPolice, policeOnScene, sceneUpdate, policeClear, recordCaseReference,
   assignAmbulance, assignHospital, ambulanceStatus, hospitalAcknowledge, hospitalAdmit, closeIncident,
   escalateUnresponsivePolice,
   attachPhoto, getPhotoPath,
