@@ -151,8 +151,11 @@ class _IncidentView extends StatelessWidget {
                 _ResponseLine(Icons.local_hospital_rounded, incident.hospital!.name, incident.hospital!.state ?? '', AppColors.safe),
               if (incident.caseReference != null) _ResponseLine(Icons.folder_open_rounded, 'Case', incident.caseReference!, AppColors.amber),
               const SizedBox(height: 16),
-              NavigateButton(label: 'NAVIGATE TO SCENE', lat: incident.lat, lng: incident.lng),
-              const SizedBox(height: 18),
+              // Once the scene is cleared there is nowhere left to go, so the button is hidden.
+              if (state != 'cleared') ...[
+                NavigateButton(label: 'NAVIGATE TO SCENE', lat: incident.lat, lng: incident.lng),
+                const SizedBox(height: 18),
+              ],
 
               // ---- state-driven actions ------------------------------------
               if (state == 'notified') ...[
