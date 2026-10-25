@@ -4,6 +4,7 @@ import { chime } from '../lib/alert.js';
 import { SEVERITY } from '../lib/format.js';
 import { useConsole, useNow } from '../lib/hooks.js';
 import { loadMuted, saveMuted } from '../lib/session.js';
+import AdminConsole from './AdminConsole.jsx';
 import CloseDialog from './CloseDialog.jsx';
 import IncidentList from './IncidentList.jsx';
 import IncidentPanel from './IncidentPanel.jsx';
@@ -16,6 +17,8 @@ export default function Console({ api, baseUrl, session, onLogout }) {
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
 
+  const [view, setView] = useState('dispatch'); // 'dispatch' | 'admin' (administrators only)
+  const isAdmin = session.user.role === 'admin';
   const [tab, setTab] = useState('open');
   const [selectedId, setSelectedId] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -40,6 +43,7 @@ export default function Console({ api, baseUrl, session, onLogout }) {
   useEffect(() => { if (notice && notice.kind !== 'error') { const t = setTimeout(() => setNotice(null), 6000); return () => clearTimeout(t); } return undefined; }, [notice]);
 
   const onError = useRef((e) => setNotice({ kind: 'error', text: e.message })).current;
+  const onNotice = useRef((text) => setNotice({ kind: 'ok', text })).current;
 
   const mapIncidents = useMemo(() => (selected && selected.status === 'closed' ? [...open, selected] : open), [open, selected]);
 
@@ -75,7 +79,10 @@ export default function Console({ api, baseUrl, session, onLogout }) {
         </div>
         <div className="top__tools">
           <span className={`pill pill--${live === 'connecting' ? 'connecting' : live}`}><i />{live === 'online' ? 'Live' : live === 'connecting' ? 'Connecting' : 'Offline, polling'}</span>
-          <button className="btn btn--primary" onClick={() => { setCreating(true); setPicked(null); setSelectedId(null); }} disabled={creating}>New report</button>
+          {isAdmin && (
+            <button className="btn btn--ghost" aria-pressed={view === 'admin'} onClick={() => setView(view === 'admin' ? 'dispatch' : 'admin')}>{view === 'admin' ? 'Back to dispatch' : 'Admin'}</button>
+          )}
+          <button className="btn btn--primary" onClick={() => { setView('dispatch'); setCreating(true); setPicked(null); setSelectedId(null); }} disabled={creating && view === 'dispatch'}>New report</button>
           <button className="btn btn--ghost" onClick={toggleMute} aria-pressed={muted}>{muted ? 'Sound off' : 'Sound on'}</button>
           <button className="btn btn--ghost" onClick={onLogout}>Sign out</button>
         </div>
@@ -88,6 +95,9 @@ export default function Console({ api, baseUrl, session, onLogout }) {
         </div>
       )}
 
+      {view === 'admin' ? (
+        <main className="console__admin"><AdminConsole api={api} onError={onError} onNotice={onNotice} /></main>
+      ) : (
       <main className="console__body">
         <IncidentList open={open} closed={closed} tab={tab} onTab={setTab} selectedId={selectedId} onSelect={(id) => { setCreating(false); setSelectedId(id); }} now={now} />
         <MapView incidents={mapIncidents} fleet={fleet} selectedId={selectedId} onSelect={(id) => { setCreating(false); setSelectedId(id); }}
@@ -102,6 +112,7 @@ export default function Console({ api, baseUrl, session, onLogout }) {
           )}
         </aside>
       </main>
+      )}
 
       {closing && selected && <CloseDialog incident={selected} onConfirm={closeIncident} onCancel={() => setClosing(false)} />}
     </div>

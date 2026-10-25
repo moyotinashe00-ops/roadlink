@@ -81,6 +81,17 @@ for (const h of recs.hospitals) for (const f of ['id', 'name', 'trauma_bays_free
 assert.ok(recs.ambulances.length >= 2 && recs.hospitals.length >= 1);
 ok('recommendations carry the fields the pickers show');
 
+// --- alert a different police unit by hand
+assert.ok(recs.police.length >= 2, 'police recommendations');
+for (const p of recs.police) for (const f of ['id', 'name', 'is_available', 'distance_m', 'eta_minutes', 'location_stale']) assert.ok(f in p, `police recommendation needs ${f}`);
+const alerted = live.incident.assignment.police.unit_id;
+const altUnit = recs.police.find((p) => p.id !== alerted);
+const rePoliced = await api.assignPolice(created.id, altUnit.id);
+assert.equal(rePoliced.assignment.police.unit_id, altUnit.id);
+await waitFor('police_assigned', () => events.find((e) => e.incident.id === created.id && e.event === 'police_assigned'));
+await assert.rejects(() => api.assignPolice(created.id, altUnit.id), (e) => e.code === 'ALREADY_ASSIGNED');
+ok('a police unit can be alerted by hand, live, and the same unit cannot be alerted twice');
+
 // --- assign an ambulance, then watch it move
 const first = recs.ambulances.find((a) => a.plate_number === 'ADX-1001') || recs.ambulances[0];
 const other = recs.ambulances.find((a) => a.id !== first.id);
@@ -130,6 +141,49 @@ const created2 = await api.createReport({ lat: -17.9, lng: 31.1, severity: 'mino
 assert.equal((await raw('POST', `/incidents/${created2.id}/ambulance`, crew, {})).status, 403);
 await api.close(created2.id, 'false_alarm');
 ok('signed-out users get 401 and an ambulance crew cannot dispatch (403)');
+
+// --- administration, as an administrator
+const adminLogin = await api.login('admin@roadlink.zw', PASSWORD);
+assert.equal(adminLogin.user.role, 'admin');
+token = adminLogin.token;
+const tag = String(Date.now()).slice(-6);
+
+const newAmb = await api.createAmbulance({ plate_number: `ZZ-${tag}`, provider: 'Contract Check' });
+assert.ok(newAmb.id);
+assert.ok((await api.adminAmbulances()).some((a) => a.id === newAmb.id && a.is_active === true));
+await api.updateAmbulance(newAmb.id, { is_active: false });
+assert.ok((await api.adminAmbulances()).some((a) => a.id === newAmb.id && a.is_active === false), 'a switched-off ambulance is still listed for the administrator');
+assert.ok(!(await api.ambulances()).some((a) => a.id === newAmb.id), 'and hidden from dispatch');
+ok('administrator adds an ambulance, switches it off, and still sees it in the full list');
+
+const newUnit = await api.createPoliceUnit({ name: `Contract Unit ${tag}`, station: 'Test' });
+await api.updatePoliceUnit(newUnit.id, { is_active: false });
+const newHosp = await api.createHospital({ name: `Contract Clinic ${tag}`, lat: -17.8, lng: 31.0, trauma_bays_total: 4, trauma_bays_free: 2, contact_number: '+263 4 000000' });
+assert.ok((await api.adminHospitals()).some((h) => h.id === newHosp.id));
+await api.updateHospital(newHosp.id, { is_active: false });
+ok('administrator adds and switches off a police unit and a hospital');
+
+const newUser = await api.createUser({ name: `Contract User ${tag}`, role: 'dispatcher', email: `contract.${tag}@roadlink.zw`, password: 'contract-pass-1' });
+assert.ok(newUser.id && newUser.role === 'dispatcher');
+assert.ok((await api.adminUsers()).some((u) => u.id === newUser.id));
+await api.updateUser(newUser.id, { password: 'contract-pass-2' });
+assert.equal((await raw('POST', '/auth/login', null, { identifier: `contract.${tag}@roadlink.zw`, password: 'contract-pass-2' })).status, 200);
+await api.updateUser(newUser.id, { is_active: false });
+assert.equal((await raw('POST', '/auth/login', null, { identifier: `contract.${tag}@roadlink.zw`, password: 'contract-pass-2' })).status, 401, 'a disabled account cannot sign in');
+ok('administrator creates an account, resets its password, disables it, and it can no longer sign in');
+
+const summary = await api.summary(new Date(Date.now() - 7 * 86400000).toISOString());
+for (const f of ['total_incidents', 'closed_incidents', 'avg_report_to_police_on_scene_s', 'avg_report_to_ambulance_assigned_s', 'avg_ambulance_assigned_to_on_scene_s', 'avg_report_to_hospital_admission_s', 'by_severity', 'by_source']) assert.ok(f in summary, `summary needs ${f}`);
+assert.ok(summary.total_incidents >= 1 && Array.isArray(summary.by_severity));
+assert.equal(typeof summary.avg_report_to_ambulance_assigned_s, 'number', 'the incident we just dispatched has an ambulance-assigned time');
+ok(`summary report works (${summary.total_incidents} incidents; report to ambulance assigned averaged ${summary.avg_report_to_ambulance_assigned_s} s)`);
+
+// a dispatcher must not reach any of it
+token = me.token;
+await assert.rejects(() => api.adminUsers(), (e) => e.status === 403);
+await assert.rejects(() => api.summary(new Date().toISOString()), (e) => e.status === 403);
+assert.ok(!(await raw('GET', '/ambulances?all=1', me.token)).body.ambulances.some((a) => a.id === newAmb.id), '?all=1 is ignored for dispatchers');
+ok('dispatchers get 403 on every admin endpoint, and ?all=1 does nothing for them');
 
 rt.close();
 console.log('\nAll dispatch contract checks passed.');

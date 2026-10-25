@@ -16,6 +16,9 @@ sends ambulances and hospitals, enters reports that callers phone in, and closes
   Incidents are ordered critical, serious, fatalities, minor; oldest first within a level.
 - **See what is missing.** Each card shows the state of police, ambulance and hospital. Red means the dispatcher still
   has to act. The header counts incidents that need action.
+- **Alert police by hand.** Police are alerted automatically. When nobody was found, or the alerted unit is silent, the
+  panel lists police units (available first, with distance and ETA) so the dispatcher can pick one or press *Alert
+  nearest*. A unit that has already accepted cannot be taken away.
 - **Send an ambulance.** Ambulances are listed closest first with an ETA. One with an old GPS position is tagged
   "old position". *Auto-assign best* lets the server choose; it prefers vehicles with a recent position.
 - **Replace a crew only on purpose.** If the crew is already on scene or carrying a patient, replacing it needs a
@@ -29,6 +32,17 @@ sends ambulances and hospitals, enters reports that callers phone in, and closes
 - **Read the full timeline** and see the scene photo and the caller's number.
 
 Dispatchers and administrators can sign in. Other roles are turned away with a clear message.
+
+### Administration (administrator accounts)
+
+An **Admin** button opens the management screens:
+
+- **Summary:** incidents in the last 7, 30 or 90 days and the average time from report to police on scene, ambulance
+  assigned, ambulance on scene and hospital admission. A stage nobody has reached yet shows "no data yet", never 0.
+- **Users:** create accounts (police, ambulance and hospital accounts must be linked to their unit, vehicle or hospital),
+  disable or enable them, and reset passwords.
+- **Ambulances, Police units, Hospitals:** add new ones and switch them off or on. Switched-off records stay listed here
+  so a mistake can be undone, and are hidden from dispatch.
 
 ## Run it
 
@@ -50,17 +64,18 @@ without it.
 
 ```bash
 npm run lint
-npm test           # 30 tests: ordering, the API client, and the real screen flows
+npm test           # 44 tests: ordering, the API client, dispatch flows and the admin screens
 npm run build
 npm run contract   # needs the backend running: the console's own API and live-feed code against the real server
 ```
 
-`npm run contract` signs in as a dispatcher, enters a report, watches it arrive over the live connection, assigns and
-replaces an ambulance, assigns a hospital, tries to close early, closes, and checks who may and may not do each step.
+`npm run contract` signs in as a dispatcher, enters a report, watches it arrive over the live connection, alerts a
+police unit by hand, assigns and replaces an ambulance, assigns a hospital, tries to close early, closes, then signs in as
+an administrator to manage accounts, vehicles, units and hospitals and read the summary, and checks who may and may not
+do each step.
 
 ## Limits
 
-- Police alerts are automatic. There is no manual police assignment in the API yet, so when no unit is available the
-  panel tells the dispatcher to phone the nearest station.
-- User and fleet administration (creating accounts, hospitals, vehicles) is available in the API but has no screen yet.
+- A hospital's location is typed in as two coordinates (copy them from Google Maps); there is no map picker for it yet.
+- Deleting is not offered on purpose: records are switched off instead, so past incidents keep their history.
 - The sound alert needs one click on the page before the browser allows audio.

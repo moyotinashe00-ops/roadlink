@@ -52,11 +52,15 @@ export default function IncidentPanel({ api, incident, now, onUpdated, onCloseRe
   const sev = SEVERITY[incident.severity] || SEVERITY.minor;
   const ambId = a.ambulance?.ambulance_id;
   const hospId = a.hospital?.hospital_id;
+  const policeId = a.police?.unit_id;
+  // Once a unit has accepted or arrived it cannot be taken away; before that the dispatcher may change it.
+  const canChangePolice = open && (!a.police || ['notified', 'cleared'].includes(a.police.state));
   const committed = !!a.ambulance && COMMITTED.includes(a.ambulance.state);
 
   const [recs, setRecs] = useState(null);
   const [busy, setBusy] = useState(false);
   const [replacing, setReplacing] = useState(false);
+  const [choosingPolice, setChoosingPolice] = useState(false);
   const [breakdown, setBreakdown] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
 
@@ -64,14 +68,15 @@ export default function IncidentPanel({ api, incident, now, onUpdated, onCloseRe
     try { setRecs(await api.recommendations(incident.id)); } catch (e) { onError(e); }
   }, [api, incident.id, onError]);
 
-  useEffect(() => { setReplacing(false); setBreakdown(false); setShowTimeline(false); }, [incident.id]);
-  useEffect(() => { if (open) loadRecs(); else setRecs(null); }, [open, incident.id, ambId, hospId, loadRecs]);
+  useEffect(() => { setReplacing(false); setBreakdown(false); setShowTimeline(false); setChoosingPolice(false); }, [incident.id]);
+  useEffect(() => { if (open) loadRecs(); else setRecs(null); }, [open, incident.id, ambId, hospId, policeId, loadRecs]);
 
   async function act(fn) {
     setBusy(true);
-    try { onUpdated(await fn()); setReplacing(false); setBreakdown(false); } catch (e) { onError(e); } finally { setBusy(false); }
+    try { onUpdated(await fn()); setReplacing(false); setBreakdown(false); setChoosingPolice(false); } catch (e) { onError(e); } finally { setBusy(false); }
   }
   const assignAmbulance = (ambulanceId) => act(() => api.assignAmbulance(incident.id, { ambulanceId, force: committed }));
+  const assignPolice = (policeUnitId) => act(() => api.assignPolice(incident.id, policeUnitId));
   const assignHospital = (hospitalId) => act(() => api.assignHospital(incident.id, hospitalId));
 
   const choosingAmbulance = open && (!a.ambulance || replacing);
@@ -101,11 +106,35 @@ export default function IncidentPanel({ api, incident, now, onUpdated, onCloseRe
       {incident.hazard_notes && <p className="hazard"><b>Hazard:</b> {incident.hazard_notes}</p>}
       {incident.has_photo && <Photo api={api} incidentId={incident.id} />}
 
-      <Section title="Police" tone={a.police ? 'ok' : 'bad'}>
+      <Section title="Police" tone={a.police ? 'ok' : 'bad'}
+        aside={canChangePolice && a.police && !choosingPolice && <button className="btn btn--ghost" onClick={() => setChoosingPolice(true)}>Change</button>}>
         {a.police ? (
           <p className="assigned"><strong>{a.police.name || 'Police unit'}</strong><span className="state">{POLICE_STATE[a.police.state] || a.police.state}</span></p>
         ) : (
-          <p className="warn">No police unit is alerted. Phone the nearest station.</p>
+          <p className="warn">No police unit is alerted. Choose one below, or phone the nearest station.</p>
+        )}
+        {a.police?.state === 'notified' && <p className="muted">Waiting for the unit to accept.</p>}
+        {canChangePolice && (choosingPolice || !a.police) && (
+          <>
+            <div className="recs__top">
+              <span className="muted">Police units, available first</span>
+              <button className="btn btn--primary" disabled={busy} onClick={() => assignPolice(undefined)}>Alert nearest</button>
+            </div>
+            {!recs ? <p className="muted">Loading&hellip;</p> : (
+              <ul className="recs">
+                {(recs.police || []).filter((p) => p.id !== policeId).map((p) => (
+                  <li key={p.id} className="rec">
+                    <div><strong>{p.name}</strong>
+                      {!p.is_available && <span className="tag tag--warn">busy</span>}
+                      {p.location_stale && <span className="tag tag--warn">old position</span>}</div>
+                    <div className="rec__nums"><span>{distanceLabel(p.distance_m)}</span><span>{p.eta_minutes} min</span></div>
+                    <button className="btn" disabled={busy} onClick={() => assignPolice(p.id)}>Alert</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {choosingPolice && <button className="btn btn--ghost" onClick={() => setChoosingPolice(false)}>Keep current unit</button>}
+          </>
         )}
       </Section>
 

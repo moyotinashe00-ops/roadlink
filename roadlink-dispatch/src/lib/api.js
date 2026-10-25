@@ -47,6 +47,8 @@ export function createApi({ baseUrl, getToken = () => null, onUnauthorized = () 
     assignAmbulance: (id, { ambulanceId, force } = {}) => request('POST', `/incidents/${id}/ambulance`, {
       ...(ambulanceId ? { ambulance_id: ambulanceId } : {}), ...(force ? { force: true } : {}),
     }),
+    // Alert a police unit by hand. No policeUnitId: the nearest other unit.
+    assignPolice: (id, policeUnitId) => request('POST', `/incidents/${id}/police`, policeUnitId ? { police_unit_id: policeUnitId } : {}),
     assignHospital: (id, hospitalId) => request('POST', `/incidents/${id}/hospital`, { hospital_id: hospitalId }),
     close: (id, outcome, note) => request('POST', `/incidents/${id}/close`, { outcome, ...(note ? { note } : {}) }),
     createReport: (report) => request('POST', '/incidents', report),
@@ -62,6 +64,20 @@ export function createApi({ baseUrl, getToken = () => null, onUnauthorized = () 
       if (!res.ok) throw new ApiError(res.status, 'ERROR', 'Photo not available');
       return res.blob();
     },
+    // ---- administration (administrator accounts only). ?all=1 includes switched-off records.
+    adminUsers: () => request('GET', '/admin/users').then((r) => r.users),
+    createUser: (body) => request('POST', '/admin/users', body),
+    updateUser: (id, body) => request('PATCH', `/admin/users/${id}`, body),
+    adminAmbulances: () => request('GET', '/ambulances?all=1').then((r) => r.ambulances),
+    createAmbulance: (body) => request('POST', '/admin/ambulances', body),
+    updateAmbulance: (id, body) => request('PATCH', `/admin/ambulances/${id}`, body),
+    adminPoliceUnits: () => request('GET', '/police-units?all=1').then((r) => r.police_units),
+    createPoliceUnit: (body) => request('POST', '/admin/police-units', body),
+    updatePoliceUnit: (id, body) => request('PATCH', `/admin/police-units/${id}`, body),
+    adminHospitals: () => request('GET', '/hospitals?all=1').then((r) => r.hospitals),
+    createHospital: (body) => request('POST', '/admin/hospitals', body),
+    updateHospital: (id, body) => request('PATCH', `/admin/hospitals/${id}`, body),
+    summary: (fromIso) => request('GET', `/admin/reports/summary?from=${encodeURIComponent(fromIso)}`),
     ambulances: () => request('GET', '/ambulances').then((r) => r.ambulances),
     policeUnits: () => request('GET', '/police-units').then((r) => r.police_units),
   };

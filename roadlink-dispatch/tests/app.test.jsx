@@ -114,6 +114,53 @@ describe('the incident board', () => {
   });
 });
 
+describe('alerting police by hand', () => {
+  const none = () => incident({ status: 'reported', assignment: { police: null, ambulance: null, hospital: null } });
+
+  it('offers units when nobody was alerted, and alerts the one the dispatcher picks', async () => {
+    signIn();
+    incidents = [none()];
+    installFetch({ 'POST /incidents/inc-1/police': () => incident({ updated_at: '2026-10-18T08:05:00Z', assignment: { police: { unit_id: 'pu-2', name: 'Avondale Traffic', state: 'notified' }, ambulance: null, hospital: null } }) });
+    render(<App />);
+    expect(await screen.findByText(/no police unit is alerted/i)).toBeInTheDocument();
+    const row = (await screen.findByText('Avondale Traffic')).closest('li');
+    expect(within(row).getByText('busy')).toBeInTheDocument();
+    await userEvent.setup().click(within(row).getByRole('button', { name: 'Alert' }));
+    await waitFor(() => expect(posted('/incidents/inc-1/police').body).toEqual({ police_unit_id: 'pu-2' }));
+    expect(await screen.findByText(/waiting for the unit to accept/i)).toBeInTheDocument();
+  });
+
+  it('lets the server pick the nearest unit', async () => {
+    signIn();
+    incidents = [none()];
+    installFetch({ 'POST /incidents/inc-1/police': () => incident({ updated_at: '2026-10-18T08:05:00Z' }) });
+    render(<App />);
+    await userEvent.setup().click(await screen.findByRole('button', { name: /alert nearest/i }));
+    await waitFor(() => expect(posted('/incidents/inc-1/police').body).toEqual({}));
+  });
+
+  it('can change a unit that has not answered, without offering the unit already alerted', async () => {
+    signIn();
+    installFetch();
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Change' }));
+    expect(await screen.findByText('Avondale Traffic')).toBeInTheDocument();
+    const rows = screen.getAllByRole('listitem').filter((li) => li.textContent.includes('Traffic') && li.querySelector('button'));
+    expect(rows.some((li) => li.textContent.includes('Harare Central Traffic') && li.querySelector('.rec__nums'))).toBe(false);
+  });
+
+  it('does not let the dispatcher take a unit that has already accepted', async () => {
+    signIn();
+    incidents = [withAmbulance('assigned')]; // its police unit is "accepted"
+    installFetch();
+    render(<App />);
+    await screen.findByText('Harare Central Traffic');
+    expect(screen.queryByRole('button', { name: 'Change' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /alert nearest/i })).not.toBeInTheDocument();
+  });
+});
+
 describe('sending an ambulance', () => {
   it('assigns the ambulance the dispatcher picks', async () => {
     signIn();

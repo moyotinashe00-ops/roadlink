@@ -19,6 +19,10 @@ export const withAmbulance = (state = 'assigned', over = {}) => incident({
 });
 
 export const recommendations = () => ({
+  police: [
+    { id: 'pu-1', name: 'Harare Central Traffic', is_available: true, distance_m: 600, eta_minutes: 2, location_stale: false },
+    { id: 'pu-2', name: 'Avondale Traffic', is_available: false, distance_m: 3100, eta_minutes: 6, location_stale: true },
+  ],
   ambulances: [
     { id: 'amb-1', plate_number: 'ADX-1001', provider: 'City of Harare', distance_m: 850, eta_minutes: 3, location_stale: false },
     { id: 'amb-2', plate_number: 'ADX-1002', provider: 'City of Harare', distance_m: 4200, eta_minutes: 9, location_stale: true },
