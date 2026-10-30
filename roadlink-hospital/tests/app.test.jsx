@@ -135,6 +135,42 @@ describe('the intake workflow', () => {
   });
 });
 
+describe('patient vitals', () => {
+  const VITALS = { pulse_bpm: 118, systolic_bp: 100, diastolic_bp: 65, spo2_percent: 94, consciousness: 'voice', recorded_at: new Date().toISOString() };
+
+  it('shows the crew\'s latest vitals on the incoming card', async () => {
+    const inc = incident({ latest_vitals: VITALS });
+    setupServer({ incidents: [inc] });
+    await signIn();
+    const card = (await screen.findByText(inc.reference_number)).closest('article');
+    const panel = within(card).getByRole('region', { name: /patient vitals/i });
+    expect(within(panel).getByText('118')).toBeInTheDocument();
+    expect(within(panel).getByText('100/65')).toBeInTheDocument();
+    expect(within(panel).getByText('94')).toBeInTheDocument();
+    expect(within(panel).getByText('Responds to voice')).toBeInTheDocument();
+  });
+
+  it('says so when no vitals have been recorded yet', async () => {
+    const inc = incident({ latest_vitals: null });
+    setupServer({ incidents: [inc] });
+    await signIn();
+    const card = (await screen.findByText(inc.reference_number)).closest('article');
+    expect(within(card).getByText(/no vitals recorded by the crew yet/i)).toBeInTheDocument();
+  });
+
+  it('updates the card live when the crew records new vitals', async () => {
+    const inc = incident({ latest_vitals: null });
+    setupServer({ incidents: [inc] });
+    await signIn();
+    const card = (await screen.findByText(inc.reference_number)).closest('article');
+    expect(within(card).getByText(/no vitals recorded/i)).toBeInTheDocument();
+
+    act(() => sock.emit('incident:update', { event: 'vitals_recorded', incident: { ...inc, latest_vitals: VITALS } }));
+    await waitFor(() => expect(within(card).getByText('118')).toBeInTheDocument());
+    expect(within(card).queryByText(/no vitals recorded/i)).not.toBeInTheDocument();
+  });
+});
+
 describe('live updates', () => {
   it('adds a card the instant dispatch notifies the hospital, and removes it if reassigned', async () => {
     setupServer({ incidents: [] });

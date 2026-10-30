@@ -202,6 +202,24 @@ router.post('/:id/ambulance/status', id, authenticate, requireRole('ambulance'),
   validate(z.object({ status: z.enum(['enRoute', 'onScene', 'transporting', 'arrived']) })),
   async (req, res) => rowOut(req, res, await svc.ambulanceStatus(req.params.id, req.user, req.valid.body.status)));
 
+// Patient vitals (UC9). Partial readings are fine, but at least one value is required, and blood
+// pressure is a pair. Consciousness is the AVPU scale: alert, responds to voice, to pain, unresponsive.
+const vitalsSchema = z.object({
+  pulse_bpm: z.number().int().min(0).max(300).optional(),
+  systolic_bp: z.number().int().min(0).max(300).optional(),
+  diastolic_bp: z.number().int().min(0).max(200).optional(),
+  spo2_percent: z.number().int().min(0).max(100).optional(),
+  consciousness: z.enum(['alert', 'voice', 'pain', 'unresponsive']).optional(),
+}).strict().refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'Enter at least one vital' })
+  .refine((v) => (v.systolic_bp === undefined) === (v.diastolic_bp === undefined), { message: 'Blood pressure needs both the systolic and the diastolic value' })
+  .refine((v) => v.systolic_bp === undefined || v.diastolic_bp <= v.systolic_bp, { message: 'Diastolic pressure cannot be higher than systolic' });
+
+router.post('/:id/ambulance/vitals', id, authenticate, requireRole('ambulance'), validate(vitalsSchema),
+  async (req, res) => rowOut(req, res, await svc.recordVitals(req.params.id, req.user, req.valid.body)));
+
+router.get('/:id/vitals', id, authenticate, requireRole('dispatcher', 'admin', 'ambulance', 'hospital'),
+  async (req, res) => res.json({ vitals: await svc.getVitals(req.params.id, req.user) }));
+
 // ---------------------------------------------------------------------------
 // Hospital (HOS-*)
 // ---------------------------------------------------------------------------

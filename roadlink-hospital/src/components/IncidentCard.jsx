@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import EtaRing from './EtaRing.jsx';
+import VitalsPanel from './VitalsPanel.jsx';
 import { AMBULANCE_STATE, SEVERITY, clock } from '../lib/format.js';
 
 export default function IncidentCard({ incident, now, index, isNew, busy, onAcknowledge, onAdmit, onTimeline }) {
@@ -44,6 +45,8 @@ export default function IncidentCard({ incident, now, index, isNew, busy, onAckn
           )}
         </dl>
       </div>
+
+      <VitalsPanel vitals={incident.latest_vitals} />
 
       {incident.description && <p className="card__note">{incident.description}</p>}
       {incident.hazard_notes && <p className="card__hazard"><strong>Hazard:</strong> {incident.hazard_notes}</p>}

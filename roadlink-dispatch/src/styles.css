@@ -144,6 +144,13 @@ input[type='radio'], input[type='checkbox'] { width: auto; accent-color: var(--l
 .facts dd small { font: 500 0.78rem var(--body); text-transform: none; letter-spacing: 0; }
 .facts dd a { text-transform: none; font-family: var(--mono); font-size: 1.05rem; }
 .desc { margin: 0; border-left: 3px solid var(--line); padding-left: 0.7rem; }
+.vitals { margin: 0; padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-left: 4px solid var(--lime); }
+.vitals__title { margin: 0 0 0.4rem; font: 600 0.72rem var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.vitals__title small { margin-left: 0.5rem; letter-spacing: 0; text-transform: none; }
+.vitals__grid { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.6rem 1rem; }
+.vitals__grid dt { font: 600 0.68rem var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.vitals__grid dd { margin: 0.1rem 0 0; font: 800 1.2rem/1.1 var(--display); letter-spacing: 0.02em; }
+.vitals__grid dd small { font: 500 0.78rem var(--body); letter-spacing: 0; margin-left: 0.15rem; color: var(--muted); }
 .hazard { margin: 0; background: rgba(255, 194, 26, 0.12); border-left: 4px solid var(--yellow); padding: 0.5rem 0.7rem; font-size: 0.9rem; }
 .photo { width: 100%; max-height: 240px; object-fit: cover; border: 2px solid var(--line); }
 .sect { background: var(--ink-2); border: 2px solid var(--line); padding: 0.8rem 0.9rem; position: relative; display: grid; gap: 0.5rem; }

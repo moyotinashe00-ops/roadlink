@@ -141,5 +141,23 @@ class RoadLinkApi {
   Future<Incident> ambulanceStatus(String id, String status) =>
       _incident('POST', '/incidents/$id/ambulance/status', body: {'status': status});
 
+  /// Record the patient's vitals. Every value is optional, but at least one is required and blood
+  /// pressure needs both numbers. [consciousness]: alert | voice | pain | unresponsive.
+  Future<Incident> recordVitals(
+    String id, {
+    int? pulseBpm,
+    int? systolicBp,
+    int? diastolicBp,
+    int? spo2Percent,
+    String? consciousness,
+  }) =>
+      _incident('POST', '/incidents/$id/ambulance/vitals', body: {
+        if (pulseBpm != null) 'pulse_bpm': pulseBpm,
+        if (systolicBp != null) 'systolic_bp': systolicBp,
+        if (diastolicBp != null) 'diastolic_bp': diastolicBp,
+        if (spo2Percent != null) 'spo2_percent': spo2Percent,
+        if (consciousness != null) 'consciousness': consciousness,
+      });
+
   void close() => _client.close();
 }

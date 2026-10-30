@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { applyEvent, groupBoard, hospitalState, initialBoard, setAll } from '../src/lib/board.js';
-import { etaRemainingSeconds, formatCountdown } from '../src/lib/format.js';
+import { etaRemainingSeconds, formatCountdown, vitalsRows } from '../src/lib/format.js';
 import { ApiError, createApi } from '../src/lib/api.js';
 import { incident } from './fixtures.js';
 
@@ -96,5 +96,24 @@ describe('api client', () => {
   it('handles 204 responses', async () => {
     const api = createApi({ baseUrl: 'http://x', getToken: () => 't', fetchImpl: async () => ({ ok: true, status: 204 }) });
     await expect(api.acknowledge('1')).resolves.toBeNull();
+  });
+});
+
+describe('vitalsRows', () => {
+  it('formats a full set of vitals with units and a readable consciousness level', () => {
+    const rows = vitalsRows({ pulse_bpm: 120, systolic_bp: 95, diastolic_bp: 60, spo2_percent: 92, consciousness: 'pain' });
+    expect(rows.map((r) => [r.label, r.value, r.unit])).toEqual([
+      ['Pulse', '120', 'bpm'], ['Blood pressure', '95/60', 'mmHg'], ['Oxygen (SpO₂)', '92', '%'], ['Consciousness', 'Responds to pain', ''],
+    ]);
+  });
+
+  it('shows a dash, not a blank or a zero, for a vital the crew could not measure', () => {
+    const rows = vitalsRows({ pulse_bpm: null, systolic_bp: null, diastolic_bp: null, spo2_percent: 97, consciousness: null });
+    expect(rows.map((r) => r.value)).toEqual(['—', '—', '97', '—']);
+    expect(rows[0].unit).toBe('');
+  });
+
+  it('keeps a genuine pulse of 0 (it is a reading, not a missing value)', () => {
+    expect(vitalsRows({ pulse_bpm: 0, systolic_bp: null, diastolic_bp: null, spo2_percent: null, consciousness: 'unresponsive' })[0].value).toBe('0');
   });
 });

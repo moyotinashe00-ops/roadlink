@@ -159,6 +159,15 @@ small { color: var(--muted); }
 .card__ref { font-size: 2rem; line-height: 0.9; font-weight: 900; letter-spacing: 0.03em; }
 .card__time { display: block; margin-top: 0.3rem; font: 500 0.78rem var(--mono); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
 .card__body { display: flex; gap: 1.2rem; align-items: center; margin: 1rem 0 0.8rem; }
+.vitals { margin: 0 0 0.7rem; padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-left: 4px solid var(--lime); }
+.vitals--none { color: var(--muted); font: 500 0.85rem var(--body); border-left-color: var(--line); }
+.vitals__title { margin: 0 0 0.4rem; font: 600 0.72rem var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.vitals__title small { margin-left: 0.5rem; letter-spacing: 0; text-transform: none; }
+.vitals__grid { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 0.6rem 1rem; }
+.vitals__grid dt { font: 600 0.68rem var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.vitals__grid dd { margin: 0.1rem 0 0; font: 800 1.3rem/1.1 var(--display); letter-spacing: 0.02em; }
+.vitals__grid dd small { font: 500 0.78rem var(--body); letter-spacing: 0; margin-left: 0.15rem; color: var(--muted); }
+
 .card__note { margin: 0 0 0.6rem; color: var(--text); font-size: 0.95rem; border-left: 3px solid var(--line); padding-left: 0.7rem; }
 .card__hazard { margin: 0 0 0.7rem; background: rgba(255, 194, 26, 0.12); border-left: 4px solid var(--yellow); padding: 0.5rem 0.7rem; font-size: 0.9rem; }
 .card__actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.4rem; }

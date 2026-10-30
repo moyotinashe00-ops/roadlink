@@ -100,6 +100,35 @@ class HospitalAssignment {
       );
 }
 
+/// Patient vitals recorded by the ambulance crew. Any value can be null (not measured).
+/// [consciousness] is the AVPU scale: alert | voice | pain | unresponsive.
+class PatientVitals {
+  final int? pulseBpm;
+  final int? systolicBp;
+  final int? diastolicBp;
+  final int? spo2Percent;
+  final String? consciousness;
+  final DateTime? recordedAt;
+
+  const PatientVitals({
+    this.pulseBpm,
+    this.systolicBp,
+    this.diastolicBp,
+    this.spo2Percent,
+    this.consciousness,
+    this.recordedAt,
+  });
+
+  factory PatientVitals.fromJson(Map<String, dynamic> j) => PatientVitals(
+        pulseBpm: _i(j['pulse_bpm']),
+        systolicBp: _i(j['systolic_bp']),
+        diastolicBp: _i(j['diastolic_bp']),
+        spo2Percent: _i(j['spo2_percent']),
+        consciousness: j['consciousness'] as String?,
+        recordedAt: _dt(j['recorded_at']),
+      );
+}
+
 class Incident {
   final String id;
   final String referenceNumber;
@@ -118,6 +147,7 @@ class Incident {
   final PoliceAssignment? police;
   final AmbulanceAssignment? ambulance;
   final HospitalAssignment? hospital;
+  final PatientVitals? latestVitals; // only sent to dispatch, the assigned crew and the receiving hospital
 
   const Incident({
     required this.id,
@@ -137,6 +167,7 @@ class Incident {
     this.police,
     this.ambulance,
     this.hospital,
+    this.latestVitals,
   });
 
   /// Police-confirmed count wins over the citizen's estimate.
@@ -150,6 +181,7 @@ class Incident {
     final p = sub('police');
     final am = sub('ambulance');
     final h = sub('hospital');
+    final vit = (j['latest_vitals'] as Map?)?.cast<String, dynamic>();
     return Incident(
       id: j['id'] as String,
       referenceNumber: (j['reference_number'] as String?) ?? '',
@@ -168,6 +200,7 @@ class Incident {
       police: p == null ? null : PoliceAssignment.fromJson(p),
       ambulance: am == null ? null : AmbulanceAssignment.fromJson(am),
       hospital: h == null ? null : HospitalAssignment.fromJson(h),
+      latestVitals: vit == null ? null : PatientVitals.fromJson(vit),
     );
   }
 }

@@ -306,6 +306,7 @@ const _eventLabels = <String, String>{
   'ambulance_en_route': 'Ambulance en route',
   'ambulance_on_scene': 'Ambulance on scene',
   'ambulance_transporting': 'Transporting patient',
+  'vitals_recorded': 'Patient vitals recorded',
   'ambulance_arrived_at_hospital': 'Ambulance at hospital',
   'hospital_notified': 'Hospital notified',
   'hospital_reassigned': 'Hospital changed',

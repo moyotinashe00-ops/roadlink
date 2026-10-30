@@ -114,6 +114,31 @@ describe('the incident board', () => {
   });
 });
 
+describe('patient vitals', () => {
+  it('shows the crew\'s latest vitals on an incident that has them', async () => {
+    signIn();
+    incidents = [withAmbulance('onScene', {
+      latest_vitals: { pulse_bpm: 130, systolic_bp: 88, diastolic_bp: null, spo2_percent: 91, consciousness: 'pain', recorded_at: '2026-10-18T08:10:00.000Z' },
+    })];
+    installFetch();
+    render(<App />);
+    const panel = await screen.findByRole('region', { name: /patient vitals/i });
+    expect(within(panel).getByText('130')).toBeInTheDocument();
+    expect(within(panel).getByText('91')).toBeInTheDocument();
+    expect(within(panel).getByText('Responds to pain')).toBeInTheDocument();
+    expect(within(panel).getAllByText('—').length).toBe(1); // incomplete blood pressure is shown as missing, not as a number
+  });
+
+  it('shows nothing when no vitals have been recorded', async () => {
+    signIn();
+    incidents = [withAmbulance('enRoute', { latest_vitals: null })];
+    installFetch();
+    render(<App />);
+    await screen.findByRole('heading', { name: 'RL-2600001' });
+    expect(screen.queryByRole('region', { name: /patient vitals/i })).not.toBeInTheDocument();
+  });
+});
+
 describe('alerting police by hand', () => {
   const none = () => incident({ status: 'reported', assignment: { police: null, ambulance: null, hospital: null } });
 

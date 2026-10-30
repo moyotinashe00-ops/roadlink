@@ -18,13 +18,13 @@ function init(socketServer) {
 function fanout(row, event, name = 'incident:update') {
   if (!io || !row) return;
 
-  const full = staffView(row, 'dispatcher'); // includes reporter phone
-  const scoped = staffView(row, 'resource'); // reporter phone removed
-
+  const full = staffView(row, 'dispatcher'); // includes reporter phone and patient vitals
+  // Each resource gets its own view: no reporter phone for any of them, and patient vitals only for
+  // the ambulance crew and the hospital (never the police unit).
   io.to('role:dispatcher').to('role:admin').emit(name, { event, incident: full });
-  if (row.police_unit_id) io.to(`police:${row.police_unit_id}`).emit(name, { event, incident: scoped });
-  if (row.ambulance_id) io.to(`ambulance:${row.ambulance_id}`).emit(name, { event, incident: scoped });
-  if (row.hospital_id) io.to(`hospital:${row.hospital_id}`).emit(name, { event, incident: scoped });
+  if (row.police_unit_id) io.to(`police:${row.police_unit_id}`).emit(name, { event, incident: staffView(row, 'police') });
+  if (row.ambulance_id) io.to(`ambulance:${row.ambulance_id}`).emit(name, { event, incident: staffView(row, 'ambulance') });
+  if (row.hospital_id) io.to(`hospital:${row.hospital_id}`).emit(name, { event, incident: staffView(row, 'hospital') });
   io.to(`incident:${row.id}`).emit(name, { event, incident: publicView(row) });
 }
 

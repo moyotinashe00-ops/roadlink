@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:roadlink_shared/roadlink_shared.dart';
 
@@ -132,6 +133,11 @@ class _JobView extends StatelessWidget {
               const SizedBox(height: 14),
               _HospitalBlock(incident: incident, heading: heading),
               const SizedBox(height: 14),
+              // Vitals only make sense once the crew has reached the patient.
+              if (state == 'onScene' || state == 'transporting' || state == 'arrived') ...[
+                _VitalsBlock(controller: c, incident: incident),
+                const SizedBox(height: 14),
+              ],
               NavigateButton(
                 label: toHospital ? 'NAVIGATE TO ${hospital.name.toUpperCase()}' : 'NAVIGATE TO SCENE',
                 lat: toHospital ? hospital.lat! : incident.lat,
@@ -208,6 +214,221 @@ class _HospitalBlock extends StatelessWidget {
           Text(h.state == 'acknowledged' ? 'Preparing' : h.state == 'admitted' ? 'Admitted' : 'Notified',
               style: GoogleFonts.ibmPlexSans(color: AppColors.safe, fontSize: 13)),
         ],
+      ),
+    );
+  }
+}
+
+String _avpuLabel(String? s) => switch (s) {
+      'alert' => 'Alert',
+      'voice' => 'Voice',
+      'pain' => 'Pain',
+      'unresponsive' => 'Unresponsive',
+      _ => '—',
+    };
+
+/// The newest vitals this crew recorded, with a button to record or update them. The receiving
+/// hospital and dispatch see the same values the moment they are saved.
+class _VitalsBlock extends StatelessWidget {
+  final FieldController controller;
+  final Incident incident;
+  const _VitalsBlock({required this.controller, required this.incident});
+
+  Future<void> _openSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+        child: _VitalsSheet(controller: controller, incidentId: incident.id),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = incident.latestVitals;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('PATIENT VITALS', style: GoogleFonts.ibmPlexSans(fontSize: 10, letterSpacing: 1.6, color: AppColors.textMuted)),
+          const SizedBox(height: 8),
+          if (v == null)
+            Text('Nothing recorded yet. Dispatch and the receiving hospital see what you enter here.',
+                style: GoogleFonts.ibmPlexSans(fontSize: 13, color: AppColors.textMuted))
+          else
+            Wrap(
+              spacing: 22,
+              runSpacing: 10,
+              children: [
+                FactTile('Pulse', v.pulseBpm == null ? '—' : '${v.pulseBpm} bpm'),
+                FactTile('BP', v.systolicBp == null || v.diastolicBp == null ? '—' : '${v.systolicBp}/${v.diastolicBp}'),
+                FactTile('SpO2', v.spo2Percent == null ? '—' : '${v.spo2Percent}%'),
+                FactTile('Conscious', _avpuLabel(v.consciousness)),
+              ],
+            ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: controller.busy ? null : () => _openSheet(context),
+              icon: const Icon(Icons.favorite),
+              label: Text(v == null ? 'RECORD VITALS' : 'UPDATE VITALS'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+const _avpuOptions = <(String, String)>[
+  ('alert', 'Alert'),
+  ('voice', 'Voice'),
+  ('pain', 'Pain'),
+  ('unresponsive', 'Unresponsive'),
+];
+
+/// Entry form. Every box is optional (a vital you could not measure stays empty) but at least one
+/// value is needed, and blood pressure needs both numbers. The same rules are enforced by the server.
+class _VitalsSheet extends StatefulWidget {
+  final FieldController controller;
+  final String incidentId;
+  const _VitalsSheet({required this.controller, required this.incidentId});
+
+  @override
+  State<_VitalsSheet> createState() => _VitalsSheetState();
+}
+
+class _VitalsSheetState extends State<_VitalsSheet> {
+  final _pulse = TextEditingController();
+  final _systolic = TextEditingController();
+  final _diastolic = TextEditingController();
+  final _spo2 = TextEditingController();
+  String? _avpu;
+  String? _error;
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    _systolic.dispose();
+    _diastolic.dispose();
+    _spo2.dispose();
+    super.dispose();
+  }
+
+  /// A whole number from [min] to [max], or null when the box is empty.
+  int? _read(TextEditingController box, String name, int min, int max) {
+    final text = box.text.trim();
+    if (text.isEmpty) return null;
+    final n = int.tryParse(text);
+    if (n == null || n < min || n > max) {
+      throw FormatException('$name must be a whole number from $min to $max');
+    }
+    return n;
+  }
+
+  Future<void> _save() async {
+    try {
+      final pulse = _read(_pulse, 'Pulse', 0, 300);
+      final systolic = _read(_systolic, 'Systolic pressure', 0, 300);
+      final diastolic = _read(_diastolic, 'Diastolic pressure', 0, 200);
+      final spo2 = _read(_spo2, 'Oxygen saturation', 0, 100);
+      if (pulse == null && systolic == null && diastolic == null && spo2 == null && _avpu == null) {
+        throw const FormatException('Enter at least one vital');
+      }
+      if ((systolic == null) != (diastolic == null)) {
+        throw const FormatException('Blood pressure needs both numbers');
+      }
+      if (systolic != null && diastolic != null && diastolic > systolic) {
+        throw const FormatException('Diastolic pressure cannot be higher than systolic');
+      }
+      setState(() => _error = null);
+      final ok = await runGuarded(
+        context,
+        () => widget.controller.recordVitals(
+          widget.incidentId,
+          pulseBpm: pulse,
+          systolicBp: systolic,
+          diastolicBp: diastolic,
+          spo2Percent: spo2,
+          consciousness: _avpu,
+        ),
+      );
+      if (ok && mounted) Navigator.of(context).pop();
+    } on FormatException catch (e) {
+      setState(() => _error = e.message);
+    }
+  }
+
+  Widget _numberField(TextEditingController box, String label) => TextField(
+        controller: box,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: InputDecoration(labelText: label),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('PATIENT VITALS', style: RoadLinkFonts.display(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 1.4)),
+            const SizedBox(height: 4),
+            Text('Leave blank anything you could not measure.', style: GoogleFonts.ibmPlexSans(fontSize: 13, color: AppColors.textMuted)),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(child: _numberField(_pulse, 'Pulse (bpm)')),
+                const SizedBox(width: 12),
+                Expanded(child: _numberField(_spo2, 'SpO2 (%)')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _numberField(_systolic, 'Systolic (mmHg)')),
+                const SizedBox(width: 12),
+                Expanded(child: _numberField(_diastolic, 'Diastolic (mmHg)')),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text('CONSCIOUSNESS', style: GoogleFonts.ibmPlexSans(fontSize: 10, letterSpacing: 1.6, color: AppColors.textMuted)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final o in _avpuOptions)
+                  ChoiceChip(
+                    label: Text(o.$2),
+                    selected: _avpu == o.$1,
+                    onSelected: (picked) => setState(() => _avpu = picked ? o.$1 : null),
+                  ),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: GoogleFonts.ibmPlexSans(fontSize: 13, color: AppColors.alert)),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: widget.controller.busy ? null : _save,
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                child: Text('SAVE VITALS', style: RoadLinkFonts.display(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1.4)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

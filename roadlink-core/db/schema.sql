@@ -151,6 +151,26 @@ CREATE TABLE IF NOT EXISTS status_updates (
 );
 CREATE INDEX IF NOT EXISTS status_updates_incident_idx ON status_updates (incident_id, created_at);
 
+-- Patient vitals entered by the ambulance crew (UC9 / FR9). Every reading is kept; the latest one is
+-- what the receiving hospital and the dispatcher see. A reading may be partial (a vital that could not
+-- be measured is left NULL) but must contain at least one value. Consciousness uses the AVPU scale.
+CREATE TABLE IF NOT EXISTS patient_vitals (
+  id            BIGSERIAL PRIMARY KEY,
+  incident_id   UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+  ambulance_id  UUID REFERENCES ambulances(id),
+  recorded_by   UUID REFERENCES users(id),
+  pulse_bpm     INT CHECK (pulse_bpm BETWEEN 0 AND 300),
+  systolic_bp   INT CHECK (systolic_bp BETWEEN 0 AND 300),
+  diastolic_bp  INT CHECK (diastolic_bp BETWEEN 0 AND 200),
+  spo2_percent  INT CHECK (spo2_percent BETWEEN 0 AND 100),
+  consciousness TEXT CHECK (consciousness IN ('alert', 'voice', 'pain', 'unresponsive')),
+  recorded_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT patient_vitals_not_empty CHECK (pulse_bpm IS NOT NULL OR systolic_bp IS NOT NULL
+                                             OR spo2_percent IS NOT NULL OR consciousness IS NOT NULL),
+  CONSTRAINT patient_vitals_bp_pair CHECK ((systolic_bp IS NULL) = (diastolic_bp IS NULL))
+);
+CREATE INDEX IF NOT EXISTS patient_vitals_incident_idx ON patient_vitals (incident_id, recorded_at DESC, id DESC);
+
 -- Known areas used to place USSD reports, which carry no GPS (see routes/ussd.js).
 CREATE TABLE IF NOT EXISTS known_areas (
   id        SERIAL PRIMARY KEY,

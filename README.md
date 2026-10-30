@@ -78,12 +78,17 @@ Things that behave differently in a browser:
 ## Checks
 
 ```bash
-cd roadlink-core     && npm run lint && npm test     # 73 integration tests on a real PostGIS database
+cd roadlink-core     && npm run lint && npm test     # 85 integration tests on a real PostGIS database
 cd roadlink-hospital && npm run lint && npm test && npm run build
-cd roadlink-hospital && npm run contract             # needs the backend running; checks the dashboard against the live API
-cd roadlink-dispatch && npm run lint && npm test && npm run build && npm run contract
+cd roadlink-dispatch && npm run lint && npm test && npm run build
 cd roadlink_reporter && flutter analyze && flutter test
+./scripts/ci-contract.sh                             # needs PostgreSQL + PostGIS; starts a real Core and checks
+                                                     # the hospital portal, dispatch console and Dart apps against it
 ```
+
+All of this runs automatically on every push to `main` and every pull request (`.github/workflows/ci.yml`). The
+contract script gives each check its own freshly seeded database, because the checks create incidents and take
+ambulances.
 
 ## How dispatch behaves
 

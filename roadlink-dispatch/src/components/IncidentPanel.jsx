@@ -1,12 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  AMBULANCE_STATE, COMMITTED, HOSPITAL_STATE, POLICE_STATE, SEVERITY, STATUS, ageLabel, clock, distanceLabel,
+  AMBULANCE_STATE, COMMITTED, HOSPITAL_STATE, POLICE_STATE, SEVERITY, STATUS, ageLabel, clock, distanceLabel, vitalsRows,
 } from '../lib/format.js';
 
 const eventLabel = (e) => {
   const t = String(e || '').replace(/^incident_/, '').replace(/_/g, ' ');
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
+
+/** The newest vitals the ambulance crew has recorded (also what the receiving hospital sees). */
+function Vitals({ vitals }) {
+  return (
+    <section className="vitals" aria-label="Patient vitals">
+      <h4 className="vitals__title">Crew vitals <small>recorded {clock(vitals.recorded_at)}</small></h4>
+      <dl className="vitals__grid">
+        {vitalsRows(vitals).map((r) => (
+          <div key={r.key}><dt>{r.label}</dt><dd>{r.value}{r.unit && <small> {r.unit}</small>}</dd></div>
+        ))}
+      </dl>
+    </section>
+  );
+}
 
 function Photo({ api, incidentId }) {
   const [url, setUrl] = useState(null);
@@ -104,6 +118,7 @@ export default function IncidentPanel({ api, incident, now, onUpdated, onCloseRe
       </dl>
       {incident.description && <p className="desc">{incident.description}</p>}
       {incident.hazard_notes && <p className="hazard"><b>Hazard:</b> {incident.hazard_notes}</p>}
+      {incident.latest_vitals && <Vitals vitals={incident.latest_vitals} />}
       {incident.has_photo && <Photo api={api} incidentId={incident.id} />}
 
       <Section title="Police" tone={a.police ? 'ok' : 'bad'}

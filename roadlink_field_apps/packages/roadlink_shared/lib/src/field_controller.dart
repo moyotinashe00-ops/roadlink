@@ -262,6 +262,25 @@ class FieldController extends ChangeNotifier {
         _put(await api.ambulanceStatus(id, status));
       });
 
+  Future<void> recordVitals(
+    String id, {
+    int? pulseBpm,
+    int? systolicBp,
+    int? diastolicBp,
+    int? spo2Percent,
+    String? consciousness,
+  }) =>
+      _act(() async {
+        _put(await api.recordVitals(
+          id,
+          pulseBpm: pulseBpm,
+          systolicBp: systolicBp,
+          diastolicBp: diastolicBp,
+          spo2Percent: spo2Percent,
+          consciousness: consciousness,
+        ));
+      });
+
   Future<void> setAvailable(bool available) => _act(() async {
         final ok = await api.setAvailable(role, available);
         final m = me;

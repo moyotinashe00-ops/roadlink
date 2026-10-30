@@ -4,7 +4,7 @@ const { forbidden, notFound, conflict } = require('../middleware/errors');
 const { AMBULANCE_ORDER_SQL, nearestPoliceUnit, recommendHospitals } = require('./dispatchService');
 const { estimateMinutes } = require('./geo');
 const notify = require('./notifications');
-const { publicView, staffView } = require('./views');
+const { publicView, staffView, VITALS_AUDIENCES } = require('./views');
 
 // Order matters: the headline status only ever moves FORWARD. Police, ambulance and hospital
 // progress in parallel, so e.g. "ambulanceAssigned" can arrive before "policeOnScene"; the
@@ -34,13 +34,19 @@ const INCIDENT_SELECT = `
          pu.name AS police_unit_name, amb.plate_number AS ambulance_plate, h.name AS hospital_name,
          h.contact_number AS hospital_phone,
          ST_Y(h.location::geometry) AS hospital_lat, ST_X(h.location::geometry) AS hospital_lng,
-         cr.reference_number AS case_reference
+         cr.reference_number AS case_reference,
+         lv.pulse_bpm AS vit_pulse_bpm, lv.systolic_bp AS vit_systolic_bp, lv.diastolic_bp AS vit_diastolic_bp,
+         lv.spo2_percent AS vit_spo2_percent, lv.consciousness AS vit_consciousness, lv.recorded_at AS vit_recorded_at
   FROM incidents i
   LEFT JOIN assignments a      ON a.incident_id = i.id
   LEFT JOIN police_units pu    ON pu.id = a.police_unit_id
   LEFT JOIN ambulances amb     ON amb.id = a.ambulance_id
   LEFT JOIN hospitals h        ON h.id = a.hospital_id
-  LEFT JOIN case_references cr ON cr.incident_id = i.id`;
+  LEFT JOIN case_references cr ON cr.incident_id = i.id
+  LEFT JOIN LATERAL (
+    SELECT pulse_bpm, systolic_bp, diastolic_bp, spo2_percent, consciousness, recorded_at
+    FROM patient_vitals pv WHERE pv.incident_id = i.id
+    ORDER BY pv.recorded_at DESC, pv.id DESC LIMIT 1) lv ON TRUE`;
 
 async function getIncidentRow(db, id) {
   const { rows } = await db.query(`${INCIDENT_SELECT} WHERE i.id = $1`, [id]);
@@ -480,6 +486,35 @@ const ambulanceStatus = (id, user, state) => mutate(id, async (db) => {
   return { event };
 });
 
+// UC9 / FR9: the crew records the patient's vitals. Every reading is kept and the newest one travels
+// with the incident to the dispatcher and the receiving hospital.
+const recordVitals = (id, user, v) => mutate(id, async (db) => {
+  const as = await getAssignment(db, id);
+  if (!as || as.ambulance_id !== user.ambulance_id) throw forbidden('This incident is not assigned to your ambulance');
+  await db.query(
+    `INSERT INTO patient_vitals (incident_id, ambulance_id, recorded_by, pulse_bpm, systolic_bp, diastolic_bp, spo2_percent, consciousness)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [id, user.ambulance_id, user.id, v.pulse_bpm ?? null, v.systolic_bp ?? null, v.diastolic_bp ?? null,
+      v.spo2_percent ?? null, v.consciousness ?? null]);
+  // The values are deliberately NOT written to the timeline: the assigned police unit can read the
+  // timeline but must not see clinical data (NFR6).
+  await setStatus(db, id, null, { actor: actorOf(user), event: 'vitals_recorded' });
+  return { event: 'vitals_recorded' };
+});
+
+/** Every reading for an incident, newest first. Dispatch, the assigned crew and the assigned hospital only. */
+async function getVitals(id, user) {
+  const row = await getIncidentRow(pool, id);
+  if (!row) throw notFound('Incident not found');
+  if (!VITALS_AUDIENCES.includes(user.role) || !canSee(user, row)) throw forbidden('You may not view patient vitals for this incident');
+  const { rows } = await query(
+    `SELECT pv.id, pv.pulse_bpm, pv.systolic_bp, pv.diastolic_bp, pv.spo2_percent, pv.consciousness,
+            pv.recorded_at, u.name AS recorded_by
+     FROM patient_vitals pv LEFT JOIN users u ON u.id = pv.recorded_by
+     WHERE pv.incident_id = $1 ORDER BY pv.recorded_at DESC, pv.id DESC`, [id]);
+  return rows.map((r) => ({ ...r, recorded_at: new Date(r.recorded_at).toISOString() }));
+}
+
 const hospitalAcknowledge = (id, user) => mutate(id, async (db) => {
   const as = await getAssignment(db, id);
   if (!as || as.hospital_id !== user.hospital_id) throw forbidden('This incident is not assigned to your hospital');
@@ -608,7 +643,7 @@ module.exports = {
   STATUS_ORDER, SEVERITY_ORDER, INCIDENT_SELECT,
   createIncident, getIncidentForUser, listIncidents, getTimeline, getRecommendations, getIncidentRow,
   policeAccept, policeDecline, assignPolice, policeOnScene, sceneUpdate, policeClear, recordCaseReference,
-  assignAmbulance, assignHospital, ambulanceStatus, hospitalAcknowledge, hospitalAdmit, closeIncident,
+  assignAmbulance, assignHospital, ambulanceStatus, recordVitals, getVitals, hospitalAcknowledge, hospitalAdmit, closeIncident,
   escalateUnresponsivePolice,
   attachPhoto, getPhotoPath,
 };

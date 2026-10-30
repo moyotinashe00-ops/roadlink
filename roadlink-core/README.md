@@ -63,12 +63,12 @@ release builds do not, so use HTTPS in any real deployment. The app also uploads
 ## Tests
 
 ```bash
-npm test     # 73 integration tests against a REAL PostgreSQL + PostGIS database
+npm test     # 85 integration tests against a REAL PostgreSQL + PostGIS database
 ```
 Tests run against `TEST_DATABASE_URL` (default `postgres://postgres:postgres@localhost:5432/roadlink_test`) and
 **truncate every table**, so the harness refuses to start unless the database name ends in `_test`. They cover the full
 report → admission lifecycle, role isolation, real-time delivery, ambulance-claim races, duplicate merging, USSD, photo
-upload hardening, validation and admin management.
+upload hardening, validation, admin management and patient vitals.
 
 ## Project layout
 
@@ -101,6 +101,14 @@ tests/               integration suites                      docs/API.md     end
 - **Police are a first-class actor:** the nearest available unit is alerted at creation; they can accept, decline
   (auto-reassign to the next-nearest), update scene facts and record the case number. If the alerted unit stays silent for `POLICE_ACK_TIMEOUT_MIN`, the next-nearest unit is alerted
   automatically, and dispatch is warned (`police_unresponsive`) when nobody is left.
+
+- **Patient vitals are clinical data, so they are scoped tightly.** The assigned ambulance crew records pulse, blood
+  pressure, oxygen saturation and consciousness (AVPU scale) with `POST /incidents/:id/ambulance/vitals`; any value may
+  be left out, but at least one is required and blood pressure needs both numbers. Every reading is kept
+  (`patient_vitals`), and the newest travels with the incident as `latest_vitals` to the dispatcher, the admin, the
+  recording crew and the receiving hospital only. Police and citizens never get the field, in REST or on the socket,
+  and the timeline records *that* vitals were taken but never the values, because police can read the timeline.
+  `GET /incidents/:id/vitals` returns the full history to the same audience.
 
 ## Known limitations (read before relying on this)
 

@@ -3,6 +3,22 @@
 
 const iso = (v) => (v ? new Date(v).toISOString() : null);
 
+// Patient vitals are clinical data. Only the dispatch desk, the crew that recorded them and the
+// hospital the patient is going to may see them (NFR6); police and citizens never do.
+const VITALS_AUDIENCES = ['dispatcher', 'admin', 'ambulance', 'hospital'];
+
+function latestVitals(r) {
+  if (r.vit_recorded_at == null) return null;
+  return {
+    pulse_bpm: r.vit_pulse_bpm,
+    systolic_bp: r.vit_systolic_bp,
+    diastolic_bp: r.vit_diastolic_bp,
+    spo2_percent: r.vit_spo2_percent,
+    consciousness: r.vit_consciousness,
+    recorded_at: iso(r.vit_recorded_at),
+  };
+}
+
 function publicView(r) {
   return {
     id: r.id,
@@ -18,7 +34,7 @@ function publicView(r) {
   };
 }
 
-/** audience: 'dispatcher' (sees reporter phone) or anything else (phone withheld). */
+/** audience: 'dispatcher' (sees reporter phone) or anything else (phone withheld); see VITALS_AUDIENCES for vitals. */
 function staffView(r, audience) {
   return {
     ...publicView(r),
@@ -32,6 +48,7 @@ function staffView(r, audience) {
     updated_at: iso(r.updated_at),
     closed_at: iso(r.closed_at),
     case_reference: r.case_reference || null,
+    latest_vitals: VITALS_AUDIENCES.includes(audience) ? latestVitals(r) : undefined,
     assignment: {
       police: r.police_unit_id ? { unit_id: r.police_unit_id, name: r.police_unit_name, state: r.police_state } : null,
       ambulance: r.ambulance_id
@@ -47,4 +64,4 @@ function staffView(r, audience) {
   };
 }
 
-module.exports = { publicView, staffView };
+module.exports = { publicView, staffView, VITALS_AUDIENCES };

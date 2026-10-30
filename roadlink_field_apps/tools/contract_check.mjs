@@ -62,14 +62,26 @@ const need = (cls) => MODELS[cls] || assert.fail(`could not parse ${cls} from mo
 // Keys the Dart code reads as alternatives (`a ?? b`): at least one must be present, not each.
 const ANY_OF = { MyResource: [['plate_number', 'name']] };
 
-function checkKeys(cls, obj, where) {
+// Keys the server deliberately sends to some roles ONLY (patient vitals are clinical data: NFR6). The Dart
+// model reads them as nullable, so a role that does not get them is fine; the roles listed here MUST get
+// the key, and every other role must NOT.
+const ROLE_ONLY = { Incident: { latest_vitals: ['ambulance'] } };
+
+function checkKeys(cls, obj, where, role) {
   const groups = ANY_OF[cls] || [];
   for (const g of groups) if (!g.some((k) => k in obj && obj[k] != null)) bad(`${cls}: none of [${g.join(', ')}] present in ${where}`);
   const grouped = new Set(groups.flat());
   for (const [key, required] of Object.entries(need(cls))) {
     if (grouped.has(key)) continue;
-    if (!(key in obj)) { bad(`${cls}: Dart reads "${key}" but ${where} has no such key`); continue; }
-    if (required && obj[key] == null) bad(`${cls}: Dart casts "${key}" as non-null but ${where} sent null`);
+    const only = (ROLE_ONLY[cls] || {})[key];
+    if (only) {
+      if (!role) { bad(`${cls}: \"${key}\" is role-restricted, so ${where} must say which role it is for`); continue; }
+      if (only.includes(role) && !(key in obj)) bad(`${cls}: ${role} must receive \"${key}\" but ${where} has no such key`);
+      if (!only.includes(role) && key in obj) bad(`${cls}: ${role} must NOT receive \"${key}\" (clinical data) but ${where} contains it`);
+      continue;
+    }
+    if (!(key in obj)) { bad(`${cls}: Dart reads \"${key}\" but ${where} has no such key`); continue; }
+    if (required && obj[key] == null) bad(`${cls}: Dart casts \"${key}\" as non-null but ${where} sent null`);
   }
 }
 
@@ -121,12 +133,19 @@ const hosp = (await must('GET', '/hospitals', dispatcher)).hospitals.find((h) =>
 await must('POST', `/incidents/${ID}/ambulance`, dispatcher, {});
 await must('POST', `/incidents/${ID}/hospital`, dispatcher, { hospital_id: hosp.id });
 await must('POST', `/incidents/${ID}/ambulance/status`, roleToken.ambulance, { status: 'enRoute' });
+// the crew records vitals with exactly the body api_client.dart recordVitals() builds
+await must('POST', `/incidents/${ID}/ambulance/vitals`, roleToken.ambulance, { pulse_bpm: 112, systolic_bp: 95, diastolic_bp: 60, spo2_percent: 94, consciousness: 'voice' });
 
 for (const [label, token] of [['police', roleToken.police], ['ambulance', roleToken.ambulance]]) {
   const list = (await must('GET', '/incidents?status=open&limit=100', token)).incidents;
   const inc = list.find((i) => i.id === ID);
   assert.ok(inc, `${label} cannot see its own incident in the list`);
-  checkKeys('Incident', inc, `${label} incident list`);
+  checkKeys('Incident', inc, `${label} incident list`, label);
+  if (label === 'ambulance') {
+    assert.ok(inc.latest_vitals, 'the crew must get back the vitals it just recorded');
+    checkKeys('PatientVitals', inc.latest_vitals, 'ambulance latest_vitals');
+    assert.equal(inc.latest_vitals.pulse_bpm, 112);
+  }
   if (inc.assignment.police) checkKeys('PoliceAssignment', inc.assignment.police, `${label} assignment.police`);
   if (inc.assignment.ambulance) checkKeys('AmbulanceAssignment', inc.assignment.ambulance, `${label} assignment.ambulance`);
   if (inc.assignment.hospital) {
@@ -171,7 +190,7 @@ const inc3 = await must('POST', '/incidents', null, { lat: -17.9, lng: 31.1, sev
 await must('POST', `/incidents/${inc3.id}/ambulance`, dispatcher, { ambulance_id: (await must('GET', '/ambulances/me', roleToken.ambulance)).id });
 const payload = await got;
 assert.equal(typeof payload.event, 'string');
-checkKeys('Incident', payload.incident, 'socket incident:update payload');
+checkKeys('Incident', payload.incident, 'socket incident:update payload', 'ambulance');
 ok(`socket payload is { event, incident } and parses as an Incident (event="${payload.event}")`);
 await must('POST', `/incidents/${inc3.id}/close`, dispatcher, { outcome: 'false_alarm' });
 sock.close();
