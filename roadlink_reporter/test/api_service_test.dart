@@ -100,7 +100,7 @@ void main() {
   });
 
   test('a photo is uploaded from bytes with its real image type', () async {
-    final requests = <http.BaseRequest>[];
+    final requests = <http.Request>[];
     final api = ApiService(
       baseUrl: 'http://core.test',
       client: MockClient((request) async {
@@ -120,12 +120,15 @@ void main() {
     expect(upload.method, 'POST');
     expect(upload.headers['content-type'], startsWith('multipart/form-data'));
 
-    final multipart = upload as http.MultipartRequest;
-    expect(multipart.files, hasLength(1));
-    final file = multipart.files.single;
-    expect(file.filename, 'photo.png');
-    expect(file.contentType?.mimeType, 'image/png');
-    expect(file.length, greaterThan(0));
+    // MockClient gives the handler a plain Request that holds the encoded body, not the MultipartRequest
+    // that was sent, so the body is inspected as bytes. It is binary (it contains the PNG bytes) and
+    // Request.body decodes as UTF-8, which throws on the PNG signature byte 0x89. Latin-1 maps every byte
+    // to exactly one character, so it cannot fail and keeps the image bytes intact for the checks below.
+    final body = latin1.decode(upload.bodyBytes);
+    expect(body, contains('name="photo"'));
+    expect(body, contains('filename="photo.png"'));
+    expect(body, contains('image/png'));
+    expect(body, contains(latin1.decode(png)), reason: 'the image bytes must be sent unchanged');
   });
 
   test('a report without a photo makes no upload request', () async {
