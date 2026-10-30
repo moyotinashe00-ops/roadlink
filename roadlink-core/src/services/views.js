@@ -36,7 +36,7 @@ function publicView(r) {
 
 /** audience: 'dispatcher' (sees reporter phone) or anything else (phone withheld); see VITALS_AUDIENCES for vitals. */
 function staffView(r, audience) {
-  return {
+  const out = {
     ...publicView(r),
     location_label: r.location_label,
     verified_victim_count: r.verified_victim_count,
@@ -44,11 +44,9 @@ function staffView(r, audience) {
     has_photo: r.has_photo,
     source: r.source,
     report_count: r.report_count,
-    reporter_phone: audience === 'dispatcher' ? r.reporter_phone : undefined,
     updated_at: iso(r.updated_at),
     closed_at: iso(r.closed_at),
     case_reference: r.case_reference || null,
-    latest_vitals: VITALS_AUDIENCES.includes(audience) ? latestVitals(r) : undefined,
     assignment: {
       police: r.police_unit_id ? { unit_id: r.police_unit_id, name: r.police_unit_name, state: r.police_state } : null,
       ambulance: r.ambulance_id
@@ -62,6 +60,11 @@ function staffView(r, audience) {
         : null,
     },
   };
+
+  if (audience === 'dispatcher') out.reporter_phone = r.reporter_phone;
+  if (VITALS_AUDIENCES.includes(audience)) out.latest_vitals = latestVitals(r);
+
+  return out;
 }
 
 module.exports = { publicView, staffView, VITALS_AUDIENCES };
