@@ -1,0 +1,165 @@
+name: CI
+
+# Runs on every push to main and on every pull request.
+#   core      RoadLink Core: lint + tests against a real PostgreSQL/PostGIS
+#   dispatch  Dispatch console (with the administrator console): lint + tests + build
+#   hospital  Hospital portal: lint + tests + build
+#   flutter   Reporter, Police and Ambulance apps and the shared package: analyze + tests
+#   contract  The portals and the Dart code checked against a RUNNING RoadLink Core
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch makes an older, still-running check pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  core:
+    name: Core (lint + tests)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: roadlink_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: roadlink-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: roadlink-core/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      # The suite truncates its tables, so it insists on a database whose name ends in "_test".
+      - run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/roadlink_test
+
+  dispatch:
+    name: Dispatch console (lint + tests + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: roadlink-dispatch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: roadlink-dispatch/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  hospital:
+    name: Hospital portal (lint + tests + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: roadlink-hospital
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: roadlink-hospital/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  flutter:
+    name: Flutter (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: reporter
+            dir: roadlink_reporter
+          - project: police
+            dir: roadlink_field_apps/apps/roadlink_police
+          - project: ambulance
+            dir: roadlink_field_apps/apps/roadlink_ambulance
+          - project: shared
+            dir: roadlink_field_apps/packages/roadlink_shared
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # Only real errors fail the build for now. Warnings and hints are printed but do not block, so the
+      # first run is not red because of old lint findings. Tighten this once the output is clean.
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Run tests
+        run: |
+          if [ -d test ]; then flutter test; else echo "No tests in ${{ matrix.project }}, skipping."; fi
+
+  contract:
+    name: Contract checks (portals and Dart code vs a running Core)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            roadlink-core/package-lock.json
+            roadlink-hospital/package-lock.json
+            roadlink-dispatch/package-lock.json
+            roadlink_field_apps/tools/package-lock.json
+      - name: Install dependencies
+        run: |
+          for dir in roadlink-core roadlink-hospital roadlink-dispatch roadlink_field_apps/tools; do
+            (cd "$dir" && npm ci)
+          done
+      # Starts a real server on a freshly seeded database for each check (see the script for why).
+      - run: ./scripts/ci-contract.sh
+        env:
+          ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      - name: Show the server log if a check failed
+        if: failure()
+        run: tail -n 100 core-*.log || true
