@@ -100,7 +100,7 @@ void main() {
   });
 
   test('a photo is uploaded from bytes with its real image type', () async {
-    final requests = <http.Request>[];
+    final requests = <http.BaseRequest>[];
     final api = ApiService(
       baseUrl: 'http://core.test',
       client: MockClient((request) async {
@@ -117,9 +117,15 @@ void main() {
     expect(requests, hasLength(2));
     final upload = requests[1];
     expect(upload.url.path, '/api/v1/incidents/6f1c2d3e-0000-4000-8000-000000000001/photo');
+    expect(upload.method, 'POST');
     expect(upload.headers['content-type'], startsWith('multipart/form-data'));
-    expect(upload.body, contains('name="photo"'));
-    expect(upload.body, contains('image/png'));
+
+    final multipart = upload as http.MultipartRequest;
+    expect(multipart.files, hasLength(1));
+    final file = multipart.files.single;
+    expect(file.filename, 'photo.png');
+    expect(file.contentType?.mimeType, 'image/png');
+    expect(file.length, greaterThan(0));
   });
 
   test('a report without a photo makes no upload request', () async {
