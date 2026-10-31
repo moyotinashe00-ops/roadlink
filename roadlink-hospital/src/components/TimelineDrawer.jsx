@@ -6,7 +6,7 @@ const LABELS = {
   police_accepted: 'Police accepted', police_declined: 'Police declined', police_on_scene: 'Police on scene',
   scene_updated: 'Scene details updated', scene_cleared: 'Scene cleared', case_reference_recorded: 'Police case recorded',
   ambulance_assigned: 'Ambulance assigned', ambulance_reassigned: 'Ambulance changed', ambulance_en_route: 'Ambulance en route',
-  ambulance_on_scene: 'Ambulance on scene', ambulance_transporting: 'Transporting patient', vitals_recorded: 'Patient vitals recorded',
+  ambulance_on_scene: 'Ambulance on scene', ambulance_transporting: 'Transporting patient', vitals_recorded: 'Patient vitals recorded', photo_attached: 'Photo attached',
   ambulance_arrived_at_hospital: 'Ambulance at hospital', hospital_notified: 'Hospital notified',
   hospital_reassigned: 'Hospital changed', police_escalated: 'Police: next unit alerted', police_assigned: 'Police unit assigned',
   police_unresponsive: 'No police response', incident_closed_no_transport: 'Closed: no transport', hospital_acknowledged: 'Hospital acknowledged', patient_admitted: 'Patient admitted',

@@ -78,7 +78,7 @@ Things that behave differently in a browser:
 ## Checks
 
 ```bash
-cd roadlink-core     && npm run lint && npm test     # 85 integration tests on a real PostGIS database
+cd roadlink-core     && npm run lint && npm test     # 90 integration tests on a real PostGIS database
 cd roadlink-hospital && npm run lint && npm test && npm run build
 cd roadlink-dispatch && npm run lint && npm test && npm run build
 cd roadlink_reporter && flutter analyze && flutter test

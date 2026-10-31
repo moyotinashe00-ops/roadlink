@@ -63,7 +63,7 @@ release builds do not, so use HTTPS in any real deployment. The app also uploads
 ## Tests
 
 ```bash
-npm test     # 85 integration tests against a REAL PostgreSQL + PostGIS database
+npm test     # 90 integration tests against a REAL PostgreSQL + PostGIS database
 ```
 Tests run against `TEST_DATABASE_URL` (default `postgres://postgres:postgres@localhost:5432/roadlink_test`) and
 **truncate every table**, so the harness refuses to start unless the database name ends in `_test`. They cover the full
@@ -109,6 +109,11 @@ tests/               integration suites                      docs/API.md     end
   recording crew and the receiving hospital only. Police and citizens never get the field, in REST or on the socket,
   and the timeline records *that* vitals were taken but never the values, because police can read the timeline.
   `GET /incidents/:id/vitals` returns the full history to the same audience.
+
+- **Every change to an incident is in the timeline (NFR10), and a test enforces it.** `tests/audit-trail.test.js` walks one
+  incident through every state-changing endpoint and fails if any call changes it without adding a timeline entry. It
+  exists because attaching a photo used to change an incident silently. Photos now go through `mutate()` like every
+  other change, which also locks the row so two simultaneous uploads cannot both succeed.
 
 ## Known limitations (read before relying on this)
 
