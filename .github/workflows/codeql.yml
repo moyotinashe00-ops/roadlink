@@ -27,7 +27,7 @@ jobs:
     #   - https://gh.io/supported-runners-and-hardware-resources
     #   - https://gh.io/using-larger-runners (GitHub.com only)
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       # required for all workflows
       security-events: write
@@ -43,16 +43,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
+        # What is worth scanning here: the Node backend and the React portals (javascript-typescript) and the
+        # workflow files themselves (actions). Both are analysed without building anything.
+        #
+        # Deliberately NOT scanned:
+        #   swift, java-kotlin  The only Swift/Kotlin/Java in this repo is the boilerplate Flutter generates in
+        #                       each app's ios/, macos/ and android/ folders. Autobuild cannot compile it without
+        #                       the Flutter toolchain, so these jobs always failed (and Swift runs on a macOS
+        #                       runner, which costs ten times as much).
+        #   c-cpp               Same story: Flutter's generated Windows/Linux runner code.
+        # CodeQL does not support Dart, so the Flutter code is covered by `flutter analyze` in ci.yml instead.
         - language: actions
           build-mode: none
-        - language: c-cpp
-          build-mode: none
-        - language: java-kotlin
-          build-mode: autobuild
         - language: javascript-typescript
           build-mode: none
-        - language: swift
-          build-mode: autobuild
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
