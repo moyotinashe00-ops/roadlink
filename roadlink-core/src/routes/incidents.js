@@ -127,7 +127,7 @@ router.post('/:id/photo', id, photoLimiter, upload.single('photo'), async (req, 
   const remove = () => fs.unlink(req.file.path, () => {});
   if (!looksLikeImage(req.file.path)) { remove(); throw badRequest('File is not a valid image', 'BAD_IMAGE'); }
   try {
-    const row = await svc.attachPhoto(req.params.id, req.file.filename);
+    const { row } = await svc.attachPhoto(req.params.id, req.file.filename);
     res.status(201).json(publicView(row));
   } catch (err) { remove(); throw err; }
 });

@@ -619,16 +619,16 @@ async function escalateUnresponsivePolice() {
 // ---------------------------------------------------------------------------
 // Photo attachment
 // ---------------------------------------------------------------------------
-async function attachPhoto(id, filePath) {
-  const { rows } = await query('SELECT photo_path, status FROM incidents WHERE id = $1', [id]);
-  if (!rows[0]) throw notFound('Incident not found');
-  if (rows[0].status === 'closed') throw conflict('This incident is closed', 'INCIDENT_CLOSED');
+// UC2. The photo is part of the incident, so attaching it is recorded in the timeline like every other
+// change (NFR10). Going through mutate() also locks the row, so two simultaneous uploads cannot both
+// pass the "no photo yet" check. The reporter is usually anonymous, so the actor is 'citizen'.
+const attachPhoto = (id, filePath) => mutate(id, async (db) => {
+  const { rows } = await db.query('SELECT photo_path FROM incidents WHERE id = $1', [id]);
   if (rows[0].photo_path) throw conflict('A photo is already attached', 'PHOTO_EXISTS');
-  await query('UPDATE incidents SET photo_path = $2, updated_at = now() WHERE id = $1', [id, filePath]);
-  const row = await getIncidentRow(pool, id);
-  notify.fanout(row, 'photo_attached');
-  return row;
-}
+  await db.query('UPDATE incidents SET photo_path = $2 WHERE id = $1', [id, filePath]);
+  await setStatus(db, id, null, { actor: actorOf(null), event: 'photo_attached' });
+  return { event: 'photo_attached' };
+});
 
 async function getPhotoPath(id, user) {
   const row = await getIncidentRow(pool, id);
