@@ -7,9 +7,10 @@ export default function CapacityPanel({ api, hospital, onError }) {
   const [total, setTotal] = useState(hospital.trauma_bays_total);
   const [stamp, setStamp] = useState(hospital.capacity_updated_at);
   const [saving, setSaving] = useState(false);
+  const [stale, setStale] = useState(Boolean(hospital.capacity_stale));
 
   useEffect(() => {
-    setFree(hospital.trauma_bays_free); setTotal(hospital.trauma_bays_total); setStamp(hospital.capacity_updated_at);
+    setFree(hospital.trauma_bays_free); setTotal(hospital.trauma_bays_total); setStamp(hospital.capacity_updated_at); setStale(Boolean(hospital.capacity_stale));
   }, [hospital]);
 
   async function save(nextFree, nextTotal) {
@@ -18,6 +19,7 @@ export default function CapacityPanel({ api, hospital, onError }) {
     try {
       const r = await api.updateCapacity(nextFree, nextTotal);
       setStamp(r.capacity_updated_at);
+      setStale(false);
     } catch (e) {
       setFree(prev.free); setTotal(prev.total);
       onError(e.message);
@@ -35,6 +37,12 @@ export default function CapacityPanel({ api, hospital, onError }) {
       <p className="capacity__readout">
         <strong data-testid="free-count">{free}</strong> free <span>of {total}</span>
       </p>
+      {stale && (
+        <div className="capacity__stale" role="alert">
+          <p>These numbers were last confirmed at {clock(stamp)}. Dispatch can see they may be out of date.</p>
+          <button className="btn btn--primary" disabled={saving} onClick={() => save(free, total)}>Still correct</button>
+        </div>
+      )}
       {free === 0 && <p className="capacity__warn">No free bays — the dispatcher will rank this hospital last.</p>}
 
       <div className="steppers">

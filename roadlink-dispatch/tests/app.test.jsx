@@ -239,7 +239,7 @@ describe('choosing a hospital', () => {
     render(<App />);
     const full = (await screen.findByText('Avenues Clinic')).closest('li');
     expect(within(full).getByText('full')).toBeInTheDocument();
-    expect(within(full).getByText('old numbers')).toBeInTheDocument();
+    expect(within(full).getByText(/numbers 3 h old: phone to confirm/i)).toBeInTheDocument();
     const row = screen.getByText('Parirenyatwa Group of Hospitals').closest('li');
     await userEvent.setup().click(within(row).getByRole('button', { name: 'Assign' }));
     await waitFor(() => expect(posted('/incidents/inc-1/hospital').body).toEqual({ hospital_id: 'h-1' }));
@@ -305,6 +305,120 @@ describe('a phoned-in report', () => {
       location_accuracy: 'approximate', reporter_phone: '+263 77 555 0101',
     }));
     expect(await screen.findByText(/RL-2600009 sent/)).toBeInTheDocument();
+  });
+});
+
+describe('review fixes', () => {
+  it('does not say the unit is still being waited for once the incident is closed', async () => {
+    signIn();
+    incidents = [withAmbulance('enRoute', { status: 'closed', closed_at: '2026-10-18T08:30:00Z', assignment: { ...withAmbulance().assignment, police: { unit_id: 'pu-1', name: 'ZRP Harare Central', state: 'notified' } } })];
+    installFetch();
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: /closed/i }));
+    await user.click(await screen.findByRole('button', { name: /RL-2600001, /i }));
+    await screen.findByRole('heading', { name: 'RL-2600001' });
+    expect(screen.queryByText(/waiting for the unit to accept/i)).not.toBeInTheDocument();
+  });
+
+  it('still says it while the incident is open and the unit has not accepted', async () => {
+    signIn();
+    incidents = [incident()];
+    installFetch();
+    render(<App />);
+    await screen.findByRole('heading', { name: 'RL-2600001' });
+    expect(screen.getByText(/waiting for the unit to accept/i)).toBeInTheDocument();
+  });
+
+  it('warns loudly when no ambulance was assigned in time, live and on the panel', async () => {
+    signIn();
+    incidents = [incident()];
+    installFetch();
+    render(<App />);
+    await screen.findByRole('heading', { name: 'RL-2600001' });
+    expect(screen.queryByTestId('ambulance-overdue')).not.toBeInTheDocument();
+
+    act(() => sock.emit('incident:update', { event: 'ambulance_unassigned_alert', incident: incident({ ambulance_alert_at: '2026-10-18T08:03:00Z' }) }));
+    expect(await screen.findByTestId('ambulance-overdue')).toHaveTextContent(/no ambulance has been assigned/i);
+    expect(screen.getByText(/RL-2600001 still has no ambulance/i)).toBeInTheDocument();
+    expect(screen.getByText('Ambulance: OVERDUE')).toBeInTheDocument();
+  });
+
+  it('shows what the citizens reported next to what the police confirmed', async () => {
+    signIn();
+    incidents = [incident({ severity: 'serious', reported_severity: 'critical', severity_confirmed: true })];
+    installFetch();
+    render(<App />);
+    expect(await screen.findByTestId('severity-provenance')).toHaveTextContent(/confirmed by police at the scene.*citizens reported critical/i);
+  });
+
+  it('says nothing about confirmation when nobody has confirmed the severity', async () => {
+    signIn();
+    incidents = [incident({ reported_severity: 'serious', severity_confirmed: false })];
+    installFetch();
+    render(<App />);
+    await screen.findByRole('heading', { name: 'RL-2600001' });
+    expect(screen.queryByTestId('severity-provenance')).not.toBeInTheDocument();
+  });
+
+  it('uses one word for the worst severity', async () => {
+    signIn();
+    incidents = [incident({ severity: 'fatal' })];
+    installFetch();
+    render(<App />);
+    expect(await screen.findByRole('button', { name: /RL-2600001, Fatal,/ })).toBeInTheDocument();
+    expect(screen.queryByText('Fatalities')).not.toBeInTheDocument();
+  });
+});
+
+describe('changing your own password (FR15)', () => {
+  async function open() {
+    signIn();
+    installFetch({ 'POST /auth/change-password': () => null });
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Password' }));
+    return { user, dialog: await screen.findByRole('dialog', { name: /change password/i }) };
+  }
+
+  it('sends the current and the new password and confirms', async () => {
+    const { user, dialog } = await open();
+    await user.type(within(dialog).getByLabelText('Current password'), 'old-password-1');
+    await user.type(within(dialog).getByLabelText('New password'), 'a-much-better-1');
+    await user.type(within(dialog).getByLabelText('New password again'), 'a-much-better-1');
+    await user.click(within(dialog).getByRole('button', { name: 'Change password' }));
+    await waitFor(() => expect(posted('/auth/change-password').body).toEqual({ current_password: 'old-password-1', new_password: 'a-much-better-1' }));
+    expect(await screen.findByText('Password changed.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /change password/i })).not.toBeInTheDocument();
+  });
+
+  it('refuses a short password, a mismatch, and an unchanged password without calling the server', async () => {
+    const { user, dialog } = await open();
+    const cur = within(dialog).getByLabelText('Current password');
+    const n1 = within(dialog).getByLabelText('New password');
+    const n2 = within(dialog).getByLabelText('New password again');
+    const go = () => user.click(within(dialog).getByRole('button', { name: 'Change password' }));
+    await user.type(cur, 'old-password-1'); await user.type(n1, 'short'); await user.type(n2, 'short'); await go();
+    expect(await within(dialog).findByText(/at least 8 characters/i)).toBeInTheDocument();
+    await user.clear(n1); await user.clear(n2); await user.type(n1, 'long-enough-1'); await user.type(n2, 'different-2'); await go();
+    expect(await within(dialog).findByText(/do not match/i)).toBeInTheDocument();
+    await user.clear(n1); await user.clear(n2); await user.type(n1, 'old-password-1'); await user.type(n2, 'old-password-1'); await go();
+    expect(await within(dialog).findByText(/different from the current/i)).toBeInTheDocument();
+    expect(posted('/auth/change-password')).toBeUndefined();
+  });
+
+  it('shows the server\'s reason when the current password is wrong', async () => {
+    signIn();
+    installFetch({ 'POST /auth/change-password': () => ({ __status: 400, error: { code: 'BAD_REQUEST', message: 'Current password is incorrect' } }) });
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Password' }));
+    const dialog = await screen.findByRole('dialog', { name: /change password/i });
+    await user.type(within(dialog).getByLabelText('Current password'), 'nope-nope-1');
+    await user.type(within(dialog).getByLabelText('New password'), 'a-much-better-1');
+    await user.type(within(dialog).getByLabelText('New password again'), 'a-much-better-1');
+    await user.click(within(dialog).getByRole('button', { name: 'Change password' }));
+    expect(await within(dialog).findByText(/current password is incorrect/i)).toBeInTheDocument();
   });
 });
 

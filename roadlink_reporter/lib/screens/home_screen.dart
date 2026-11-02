@@ -165,7 +165,7 @@ class _ActiveReportCard extends StatelessWidget {
                     'Active report ${incident.referenceNumber ?? ''}',
                     style: RoadLinkFonts.display(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textPrimary),
                   ),
-                  Text(incident.status.label, style: GoogleFonts.ibmPlexSans(fontSize: 13, color: AppColors.textMuted)),
+                  Text(incident.statusLabel, style: GoogleFonts.ibmPlexSans(fontSize: 13, color: AppColors.textMuted)),
                 ],
               ),
             ),

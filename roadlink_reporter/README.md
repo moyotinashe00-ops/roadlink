@@ -10,13 +10,18 @@ functional requirements **CIT-01 through CIT-10**.
 |---|---|---|
 | `HomeScreen` | CIT-01 | One primary action — no account, no sign-up. |
 | `ReportScreen` | CIT-02–CIT-06, CIT-08 | Auto GPS capture, victim count, severity, description, optional photo, submit. On network failure, offers an immediate call to dispatch instead of silently queueing (see "Design note" below). |
-| `StatusScreen` | CIT-09 | Live timeline of the incident's status, matching the lifecycle in SRS §5.3. |
+| `StatusScreen` | CIT-09 | Live timeline of the stages the incident has really passed through, with times and how it ended (SRS §5.3). |
 | Dispatch call button | CIT-10 | One tap to `tel:` the dispatch centre from anywhere in the app. |
 
-`RoadLink Police` and `RoadLink Ambulance` (SRS §2.3) are meant to share this
-same `theme/`, `models/`, and `services/` layer — the map-and-single-status-card
-UI described for them in SRS §6.1 slots in as new screens against the existing
-`ApiService`/`Incident` model rather than a new codebase.
+`RoadLink Police` and `RoadLink Ambulance` (SRS §2.3) are separate apps in
+[`../roadlink_field_apps`](../roadlink_field_apps), built on their own shared package. This app stays the
+citizen's one-screen reporter; it needs no account.
+
+**What the citizen's timeline shows.** `StatusScreen` draws the stages that *actually happened*, in the order they
+happened, using the `milestones` and `outcome` that Core sends on the public incident view. It does not assume a
+fixed order: dispatch can notify the hospital before the ambulance arrives, and an incident can close with no
+transport, in which case it reads "Closed: no transport needed" and never "Patient admitted". Against an older Core
+that sends no milestones it falls back to the previous behaviour, but a closed incident is still shown as just closed.
 
 ## Design note: why the app calls out on failure instead of queueing
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  AMBULANCE_STATE, COMMITTED, HOSPITAL_STATE, POLICE_STATE, SEVERITY, STATUS, ageLabel, clock, distanceLabel, vitalsRows,
+  AMBULANCE_STATE, COMMITTED, HOSPITAL_STATE, POLICE_STATE, SEVERITY, STATUS, ageLabel, clock, distanceLabel, minutesLabel, vitalsRows,
 } from '../lib/format.js';
 
 const eventLabel = (e) => {
@@ -105,6 +105,17 @@ export default function IncidentPanel({ api, incident, now, onUpdated, onCloseRe
         </div>
         <span className={`badge badge--${sev.tone}`}>{sev.label}</span>
       </header>
+      {incident.severity_confirmed && (
+        <p className="muted" data-testid="severity-provenance">
+          Confirmed by police at the scene{incident.reported_severity && incident.reported_severity !== incident.severity
+            ? <> &middot; citizens reported <b>{(SEVERITY[incident.reported_severity] || SEVERITY.minor).label.toLowerCase()}</b></> : null}
+        </p>
+      )}
+      {open && !a.ambulance && incident.ambulance_alert_at && (
+        <p className="warn" role="alert" data-testid="ambulance-overdue">
+          No ambulance has been assigned {ageLabel(incident.created_at, now)} after the report. Assign one below, or close the incident if none is needed.
+        </p>
+      )}
 
       <dl className="facts">
         <div><dt>Patients</dt><dd>{incident.victim_count}</dd></div>
@@ -128,7 +139,7 @@ export default function IncidentPanel({ api, incident, now, onUpdated, onCloseRe
         ) : (
           <p className="warn">No police unit is alerted. Choose one below, or phone the nearest station.</p>
         )}
-        {a.police?.state === 'notified' && <p className="muted">Waiting for the unit to accept.</p>}
+        {open && a.police?.state === 'notified' && <p className="muted">Waiting for the unit to accept.</p>}
         {canChangePolice && (choosingPolice || !a.police) && (
           <>
             <div className="recs__top">
@@ -212,7 +223,7 @@ export default function IncidentPanel({ api, incident, now, onUpdated, onCloseRe
                     <div><strong>{h.name}</strong>
                       <small>{h.trauma_bays_free} of {h.trauma_bays_total} trauma bays free</small>
                       {!h.has_capacity && <span className="tag tag--bad">full</span>}
-                      {h.capacity_stale && <span className="tag tag--warn">old numbers</span>}</div>
+                      {h.capacity_stale && <span className="tag tag--warn" title="The hospital has not confirmed its bay count recently">numbers {minutesLabel(h.capacity_age_min)} old: phone to confirm</span>}</div>
                     <div className="rec__nums"><span>{distanceLabel(h.distance_m)}</span><span>{h.eta_minutes} min</span></div>
                     <button className="btn" disabled={busy} onClick={() => assignHospital(h.id)}>Assign</button>
                   </li>

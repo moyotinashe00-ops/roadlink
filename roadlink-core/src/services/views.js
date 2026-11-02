@@ -19,6 +19,14 @@ function latestVitals(r) {
   };
 }
 
+// The stages an incident has actually passed through, in the order they happened. The single `status` can move
+// backwards (the hospital may be notified before the ambulance reaches the scene), so a citizen's screen must not
+// infer "everything up to here is done" from it.
+function milestones(r) {
+  const m = typeof r.milestones === 'string' ? JSON.parse(r.milestones) : r.milestones;
+  return Array.isArray(m) ? m.map((x) => ({ status: x.status, at: iso(x.at) })) : [];
+}
+
 function publicView(r) {
   return {
     id: r.id,
@@ -31,6 +39,9 @@ function publicView(r) {
     description: r.description,
     status: r.status,
     created_at: iso(r.created_at),
+    // how a closed incident ended: completed | no_transport | false_alarm | cancelled
+    outcome: r.status === 'closed' ? r.close_outcome || null : null,
+    milestones: milestones(r),
   };
 }
 
@@ -47,6 +58,12 @@ function staffView(r, audience) {
     updated_at: iso(r.updated_at),
     closed_at: iso(r.closed_at),
     case_reference: r.case_reference || null,
+    // `severity` is what staff act on. `reported_severity` is what the citizens said, kept even after an officer
+    // corrects it at the scene (`severity_confirmed`).
+    reported_severity: r.reported_severity || r.severity,
+    severity_confirmed: Boolean(r.severity_confirmed),
+    // Set once when no ambulance was assigned in time; null again as soon as one is.
+    ambulance_alert_at: r.ambulance_id ? null : iso(r.ambulance_alert_at),
     assignment: {
       police: r.police_unit_id ? { unit_id: r.police_unit_id, name: r.police_unit_name, state: r.police_state } : null,
       ambulance: r.ambulance_id

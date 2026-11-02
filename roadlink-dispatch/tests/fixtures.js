@@ -29,6 +29,6 @@ export const recommendations = () => ({
   ],
   hospitals: [
     { id: 'h-1', name: 'Parirenyatwa Group of Hospitals', contact_number: '+263 4 791631', trauma_bays_free: 5, trauma_bays_total: 8, has_capacity: true, distance_m: 2100, eta_minutes: 8, capacity_stale: false },
-    { id: 'h-2', name: 'Avenues Clinic', contact_number: '+263 4 251515', trauma_bays_free: 0, trauma_bays_total: 4, has_capacity: false, distance_m: 1300, eta_minutes: 5, capacity_stale: true },
+    { id: 'h-2', name: 'Avenues Clinic', contact_number: '+263 4 251515', trauma_bays_free: 0, trauma_bays_total: 4, has_capacity: false, distance_m: 1300, eta_minutes: 5, capacity_stale: true, capacity_age_min: 190 },
   ],
 });

@@ -89,7 +89,7 @@ class _StatusScreenState extends State<StatusScreen> {
                         ),
                         Expanded(
                           child: Text(
-                            _incident.status.label,
+                            _incident.statusLabel,
                             style: GoogleFonts.ibmPlexSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                           ),
                         ),
@@ -116,14 +116,16 @@ class _StatusScreenState extends State<StatusScreen> {
                 style: RoadLinkFonts.display(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: AppColors.textMuted),
               ),
               const SizedBox(height: 16),
-              StatusTimeline(current: _incident.status),
+              StatusTimeline(
+                current: _incident.status,
+                milestones: _incident.milestones,
+                outcome: _incident.outcome,
+              ),
               if (closed)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
-                    _incident.status == IncidentStatus.admitted
-                        ? 'Patient admitted. Thank you for reporting.'
-                        : 'Incident closed. Thank you for reporting.',
+                    _incident.closingMessage ?? 'Incident closed. Thank you for reporting.',
                     style: GoogleFonts.ibmPlexSans(color: AppColors.safe),
                   ),
                 ),

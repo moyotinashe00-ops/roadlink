@@ -168,6 +168,9 @@ small { color: var(--muted); }
 .vitals__grid dd { margin: 0.1rem 0 0; font: 800 1.3rem/1.1 var(--display); letter-spacing: 0.02em; }
 .vitals__grid dd small { font: 500 0.78rem var(--body); letter-spacing: 0; margin-left: 0.15rem; color: var(--muted); }
 
+.card__case { display: block; font: 600 0.78rem var(--mono); letter-spacing: 0.08em; color: var(--lime); margin-top: 0.15rem; }
+.capacity__stale { margin: 0.6rem 0; padding: 0.6rem 0.7rem; border: 1px solid var(--lime-dim); border-left: 4px solid var(--lime); display: grid; gap: 0.5rem; }
+.capacity__stale p { margin: 0; font: 500 0.88rem var(--body); }
 .card__note { margin: 0 0 0.6rem; color: var(--text); font-size: 0.95rem; border-left: 3px solid var(--line); padding-left: 0.7rem; }
 .card__hazard { margin: 0 0 0.7rem; background: rgba(255, 194, 26, 0.12); border-left: 4px solid var(--yellow); padding: 0.5rem 0.7rem; font-size: 0.9rem; }
 .card__actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.4rem; }

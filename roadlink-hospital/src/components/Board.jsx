@@ -7,6 +7,7 @@ import IncidentCard from './IncidentCard.jsx';
 import DoneRow from './DoneRow.jsx';
 import CapacityPanel from './CapacityPanel.jsx';
 import TimelineDrawer from './TimelineDrawer.jsx';
+import ChangePassword from './ChangePassword.jsx';
 
 const LIVE_LABEL = { online: 'Live', connecting: 'Connecting…', offline: 'Reconnecting — refreshing every 15s' };
 
@@ -17,6 +18,7 @@ export default function Board({ api, baseUrl, session, onLogout }) {
   const [toast, setToast] = useState(null);
   const [timelineFor, setTimelineFor] = useState(null);
   const [hospital, setHospital] = useState(null);
+  const [changingPassword, setChangingPassword] = useState(false);
   const now = useNow();
 
   const mutedRef = useRef(muted);
@@ -68,9 +70,15 @@ export default function Board({ api, baseUrl, session, onLogout }) {
         <div className="top__tools">
           <span className={`pill pill--${live}`} role="status"><i />{LIVE_LABEL[live]}</span>
           <button className="btn btn--ghost" onClick={() => setMuted(!muted)} aria-pressed={muted}>{muted ? 'Sound off' : 'Sound on'}</button>
+          <button className="btn btn--ghost" onClick={() => setChangingPassword(true)}>Password</button>
           <button className="btn btn--ghost" onClick={onLogout}>Sign out</button>
         </div>
       </header>
+
+      {changingPassword && (
+        <ChangePassword api={api} onCancel={() => setChangingPassword(false)}
+          onDone={() => { setChangingPassword(false); setToast('Password changed.'); }} />
+      )}
 
       {(toast || error) && (
         <div className="toast" role="alert">

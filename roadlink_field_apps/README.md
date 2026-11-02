@@ -17,14 +17,16 @@ They talk only to [RoadLink Core](../roadlink-core); the Hospital portal is a se
 **Police**: the nearest available unit is alerted the moment a citizen reports. A full-screen alert (with haptics) offers
 *Accept / Can't attend / Later*. "Can't attend" asks for a reason and the backend passes the incident to the next-nearest unit.
 Then: navigate → *I'm on scene* → update scene (confirmed patient count, severity, hazards) → *Scene cleared* → record the
-police case number. Shows the live ambulance/hospital status and warns when a USSD report's location is only approximate.
+police case number. Shows the live ambulance/hospital status (the hospital updates the moment dispatch changes it) with a button to navigate to it, and warns when a USSD report's location is only approximate. Police never see patient vitals.
 On-duty toggle; the unit's position is shared with dispatch.
 
 **Ambulance**: standby screen with the on-duty toggle; a new job triggers an alert. The job screen has a map (scene + receiving
 hospital), patient count and hazards, and **one big button that walks the crew through the irreversible steps**:
 *Start en route → Arrived on scene → Patient loaded → Arrived at hospital*. It is **hold-to-confirm** (0.8 s) so a bump or pocket-press
 on a moving vehicle cannot advance the job. "Navigate" points at the scene, then switches to the hospital once the patient is
-loaded; one-tap call to dispatch and to the hospital. Afterwards, *Ready for next job* puts the vehicle back on the dispatch list.
+loaded; one-tap call to dispatch and to the hospital. Once on scene the crew can **record patient vitals** (pulse, blood
+pressure, oxygen saturation, consciousness on the AVPU scale; any value may be left blank) with *Record vitals* / *Update vitals*.
+The newest reading goes live to dispatch and the receiving hospital only. Afterwards, *Ready for next job* puts the vehicle back on the dispatch list.
 
 Both: live updates over Socket.IO with a **15-second polling fallback** (and re-sync on reconnect), secure token storage
 (Keystore/Keychain), automatic sign-out when the session expires, and a banner when the connection or GPS is lost.

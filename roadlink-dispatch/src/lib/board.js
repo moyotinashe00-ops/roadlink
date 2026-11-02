@@ -35,6 +35,8 @@ export function needs(incident) {
   return {
     police: !a.police,
     ambulance: !a.ambulance,
+    // Core raised the no-ambulance alert (none assigned in time): this is now urgent, not just pending.
+    ambulanceOverdue: !a.ambulance && incident.status !== 'closed' && !!incident.ambulance_alert_at,
     hospital: !!a.ambulance && !a.hospital,
   };
 }

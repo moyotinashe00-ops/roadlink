@@ -10,12 +10,11 @@ Reporter app ─┐                         ┌─ PostgreSQL + PostGIS
 USSD gateway ─┤                         │   (nearest-resource queries)
 Police app ───┤   REST + Socket.IO      │
 Ambulance app ┼──► RoadLink Core ───────┼─ Firebase Cloud Messaging (push)
-Dispatch web ─┤   (this repo)           │
-Hospital web ─┤                         └─ uploads/ (photos)
-Admin web ────┘
+Dispatch web ─┤   (this repo)           │   (the administrator console is part of the
+Hospital web ─┘                         └─ uploads/ (photos)    dispatch web app, behind an admin login)
 ```
 
-Clients never talk to each other; every interaction goes through this service, which is what lets the six apps
+Clients never talk to each other; every interaction goes through this service, which is what lets the five apps
 be built and deployed independently.
 
 ## Quick start
@@ -63,7 +62,7 @@ release builds do not, so use HTTPS in any real deployment. The app also uploads
 ## Tests
 
 ```bash
-npm test     # 90 integration tests against a REAL PostgreSQL + PostGIS database
+npm test     # 103 integration tests against a REAL PostgreSQL + PostGIS database
 ```
 Tests run against `TEST_DATABASE_URL` (default `postgres://postgres:postgres@localhost:5432/roadlink_test`) and
 **truncate every table**, so the harness refuses to start unless the database name ends in `_test`. They cover the full

@@ -35,6 +35,29 @@ const INCIDENT_SELECT = `
          h.contact_number AS hospital_phone,
          ST_Y(h.location::geometry) AS hospital_lat, ST_X(h.location::geometry) AS hospital_lng,
          cr.reference_number AS case_reference,
+         i.reported_severity, i.severity_confirmed, i.ambulance_alert_at,
+         (SELECT substr(su.event, 17) FROM status_updates su
+           WHERE su.incident_id = i.id AND su.event LIKE 'incident\\_closed\\_%' ORDER BY su.id DESC LIMIT 1) AS close_outcome,
+         -- The stages an incident has really passed through, in the order they happened. Built from the timeline's
+         -- events, NOT from the single headline status: that only ever moves forward by rank, so once the hospital is
+         -- notified it can no longer show the crew's later steps. Ordered by id because rows written in one
+         -- transaction share a timestamp.
+         (SELECT COALESCE(json_agg(json_build_object('status', m.s, 'at', m.t) ORDER BY m.first_id), '[]'::json)
+            FROM (SELECT stage AS s, MIN(id) AS first_id, MIN(created_at) AS t
+                    FROM (SELECT id, created_at, CASE
+                            WHEN event = 'incident_created' THEN 'reported'
+                            WHEN event = 'police_notified' THEN 'policeNotified'
+                            WHEN event = 'police_on_scene' THEN 'policeOnScene'
+                            WHEN event IN ('ambulance_assigned', 'ambulance_reassigned') THEN 'ambulanceAssigned'
+                            WHEN event = 'ambulance_en_route' THEN 'ambulanceEnRoute'
+                            WHEN event = 'ambulance_on_scene' THEN 'ambulanceOnScene'
+                            WHEN event = 'ambulance_transporting' THEN 'transporting'
+                            WHEN event = 'hospital_notified' THEN 'hospitalNotified'
+                            WHEN event = 'patient_admitted' THEN 'admitted'
+                            WHEN event LIKE 'incident\\_closed\\_%' THEN 'closed'
+                          END AS stage
+                          FROM status_updates WHERE incident_id = i.id) e
+                   WHERE stage IS NOT NULL GROUP BY stage) m) AS milestones,
          lv.pulse_bpm AS vit_pulse_bpm, lv.systolic_bp AS vit_systolic_bp, lv.diastolic_bp AS vit_diastolic_bp,
          lv.spo2_percent AS vit_spo2_percent, lv.consciousness AS vit_consciousness, lv.recorded_at AS vit_recorded_at
   FROM incidents i
@@ -120,7 +143,7 @@ async function createIncident(input, user = null) {
 
     // Several bystanders usually report the same crash. Merge rather than dispatching twice.
     const dup = await db.query(
-      `SELECT id, severity, victim_count, description FROM incidents
+      `SELECT id, severity, reported_severity, severity_confirmed, verified_victim_count, victim_count, description FROM incidents
        WHERE status NOT IN ('admitted', 'closed')
          AND updated_at > now() - make_interval(mins => $3::int)   -- last activity, so a long-running scene keeps merging
          AND ST_DWithin(location, ${point}, $4)
@@ -130,13 +153,18 @@ async function createIncident(input, user = null) {
 
     if (dup.rows[0]) {
       const d = dup.rows[0];
-      const severity = rank(SEVERITY_ORDER, input.severity) > rank(SEVERITY_ORDER, d.severity) ? input.severity : d.severity;
+      const worse = (a, b) => (rank(SEVERITY_ORDER, a) > rank(SEVERITY_ORDER, b) ? a : b);
+      // What the citizens said always accumulates (worst wins), but a severity or victim count that a police
+      // officer has verified at the scene is never overridden by a later bystander report.
+      const reported = worse(input.severity, d.reported_severity || d.severity);
+      const severity = d.severity_confirmed ? d.severity : worse(input.severity, d.severity);
       const extra = input.description && !d.description.includes(input.description) ? input.description : null;
       const description = extra ? `${d.description} | ${extra}`.replace(/^ \| /, '').slice(0, 500) : d.description;
       await db.query(
-        `UPDATE incidents SET report_count = report_count + 1, severity = $2,
-                victim_count = GREATEST(victim_count, $3), description = $4, updated_at = now()
-         WHERE id = $1`, [d.id, severity, input.victim_count, description]);
+        `UPDATE incidents SET report_count = report_count + 1, severity = $2, reported_severity = $5,
+                victim_count = CASE WHEN verified_victim_count IS NOT NULL THEN victim_count ELSE GREATEST(victim_count, $3) END,
+                description = $4, updated_at = now()
+         WHERE id = $1`, [d.id, severity, input.victim_count, description, reported]);
       await setStatus(db, d.id, null, {
         actor: actorOf(user, input.source === 'ussd' ? 'ussd' : 'citizen'),
         event: 'duplicate_report_merged',
@@ -146,9 +174,9 @@ async function createIncident(input, user = null) {
     }
 
     const ins = await db.query(
-      `INSERT INTO incidents (location, location_accuracy, location_label, severity, victim_count,
+      `INSERT INTO incidents (location, location_accuracy, location_label, severity, reported_severity, victim_count,
                               description, source, reporter_phone, created_by)
-       VALUES (${point}, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+       VALUES (${point}, $3, $4, $5, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [lng, lat, input.location_accuracy, input.location_label || null, input.severity, input.victim_count,
         input.description || '', input.source, input.reporter_phone || null, user ? user.id : null]);
     const id = ins.rows[0].id;
@@ -344,6 +372,7 @@ const sceneUpdate = (id, user, { verified_victim_count, hazard_notes, severity }
   await db.query(
     `UPDATE incidents SET verified_victim_count = COALESCE($2, verified_victim_count),
             hazard_notes = COALESCE($3, hazard_notes), severity = COALESCE($4, severity),
+            severity_confirmed = severity_confirmed OR ($4::text IS NOT NULL),
             victim_count = COALESCE($2, victim_count)
      WHERE id = $1`, [id, verified_victim_count ?? null, hazard_notes ?? null, severity ?? null]);
   const bits = [];
@@ -414,6 +443,7 @@ const assignAmbulance = (id, user, ambulanceId, { force = false } = {}) => mutat
      VALUES ($1, $2, 'assigned', $3, now())
      ON CONFLICT (incident_id) DO UPDATE SET ambulance_id = EXCLUDED.ambulance_id, ambulance_state = 'assigned',
        ambulance_eta_minutes = EXCLUDED.ambulance_eta_minutes, ambulance_assigned_at = now()`, [id, claimed.id, eta]);
+  await db.query('UPDATE incidents SET ambulance_alert_at = NULL WHERE id = $1', [id]);
   await setStatus(db, id, 'ambulanceAssigned', {
     actor: actorOf(user), event: as && as.ambulance_id ? 'ambulance_reassigned' : 'ambulance_assigned',
     note: `${claimed.plate_number}${force && as && as.ambulance_id ? ' (forced reassignment)' : ''}`,
@@ -616,6 +646,43 @@ async function escalateUnresponsivePolice() {
   return escalated;
 }
 
+/**
+ * Nothing used to warn dispatch when an incident had no ambulance. If an open incident still has none
+ * AMBULANCE_ALERT_MIN minutes after it was reported, record that once in the timeline and tell the dispatchers,
+ * who can assign one or close the incident. The alert re-arms when an ambulance is assigned (and later released).
+ * Returns the number of incidents it raised an alert for.
+ */
+async function alertUnassignedAmbulances() {
+  const secs = Math.max(1, Math.round(config.ambulanceAlertMin * 60));
+  const { rows: due } = await query(
+    `SELECT i.id FROM incidents i LEFT JOIN assignments a ON a.incident_id = i.id
+     WHERE i.status NOT IN ('admitted', 'closed') AND i.ambulance_alert_at IS NULL AND a.ambulance_id IS NULL
+       AND i.created_at < now() - make_interval(secs => $1::int)`, [secs]);
+
+  let alerted = 0;
+  for (const { id } of due) {
+    const system = { actor_user_id: null, actor_role: 'system' };
+    const done = await withTransaction(async (db) => {
+      // Re-check under the lock: a dispatcher may have assigned one while we were queueing.
+      const still = await db.query(
+        `SELECT 1 FROM incidents i LEFT JOIN assignments a ON a.incident_id = i.id
+         WHERE i.id = $1 AND i.status NOT IN ('admitted', 'closed') AND i.ambulance_alert_at IS NULL AND a.ambulance_id IS NULL
+         FOR UPDATE OF i SKIP LOCKED`, [id]);
+      if (!still.rows[0]) return false;
+      await db.query('UPDATE incidents SET ambulance_alert_at = now() WHERE id = $1', [id]);
+      await setStatus(db, id, null, {
+        actor: system, event: 'ambulance_unassigned_alert',
+        note: `No ambulance assigned ${config.ambulanceAlertMin} min after the report`,
+      });
+      return true;
+    });
+    if (!done) continue;
+    alerted += 1;
+    notify.fanout(await getIncidentRow(pool, id), 'ambulance_unassigned_alert');
+  }
+  return alerted;
+}
+
 // ---------------------------------------------------------------------------
 // Photo attachment
 // ---------------------------------------------------------------------------
@@ -644,6 +711,6 @@ module.exports = {
   createIncident, getIncidentForUser, listIncidents, getTimeline, getRecommendations, getIncidentRow,
   policeAccept, policeDecline, assignPolice, policeOnScene, sceneUpdate, policeClear, recordCaseReference,
   assignAmbulance, assignHospital, ambulanceStatus, recordVitals, getVitals, hospitalAcknowledge, hospitalAdmit, closeIncident,
-  escalateUnresponsivePolice,
+  escalateUnresponsivePolice, alertUnassignedAmbulances,
   attachPhoto, getPhotoPath,
 };

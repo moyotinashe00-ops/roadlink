@@ -151,6 +151,16 @@ CREATE TABLE IF NOT EXISTS status_updates (
 );
 CREATE INDEX IF NOT EXISTS status_updates_incident_idx ON status_updates (incident_id, created_at);
 
+-- Reported vs confirmed severity. `severity` is the working value staff act on. `reported_severity` keeps what the
+-- citizens said (the worst of all merged reports) so a police correction never erases it. `severity_confirmed` is set
+-- when an officer verifies the severity at the scene; after that, later merged reports no longer change it.
+-- `ambulance_alert_at` is set once when no ambulance has been assigned after AMBULANCE_ALERT_MIN minutes.
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS reported_severity TEXT
+  CHECK (reported_severity IN ('minor', 'serious', 'critical', 'fatal'));
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS severity_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS ambulance_alert_at TIMESTAMPTZ;
+UPDATE incidents SET reported_severity = severity WHERE reported_severity IS NULL;
+
 -- Patient vitals entered by the ambulance crew (UC9 / FR9). Every reading is kept; the latest one is
 -- what the receiving hospital and the dispatcher see. A reading may be partial (a vital that could not
 -- be measured is left NULL) but must contain at least one value. Consciousness uses the AVPU scale.

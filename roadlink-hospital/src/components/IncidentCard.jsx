@@ -25,6 +25,7 @@ export default function IncidentCard({ incident, now, index, isNew, busy, onAckn
         <div>
           <h3 className="card__ref">{incident.reference_number}</h3>
           <span className="card__time">Notified {clock(hospital.assigned_at)}</span>
+          {incident.case_reference && <span className="card__case" data-testid="case-reference">Police case {incident.case_reference}</span>}
         </div>
         <span className={`badge badge--${sev.tone}`}>{sev.label}</span>
       </header>
