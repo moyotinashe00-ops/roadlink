@@ -11,7 +11,7 @@ extension SeverityX on Severity {
         Severity.minor => 'Minor',
         Severity.serious => 'Serious',
         Severity.critical => 'Critical',
-        Severity.fatal => 'Fatalities',
+        Severity.fatal => 'Fatal',
       };
 
   String get apiValue => name;
@@ -70,6 +70,13 @@ extension IncidentStatusX on IncidentStatus {
       );
 }
 
+/// A stage the incident has really passed through, and when (taken from the server's timeline).
+class IncidentMilestone {
+  final IncidentStatus status;
+  final DateTime? at;
+  const IncidentMilestone({required this.status, this.at});
+}
+
 class Incident {
   final String? id;
   final String? referenceNumber;
@@ -86,6 +93,14 @@ class Incident {
   final IncidentStatus status;
   final DateTime createdAt;
 
+  /// How a closed incident ended: completed | no_transport | false_alarm | cancelled (null while open).
+  final String? outcome;
+
+  /// The stages that really happened, in the order they happened. [status] alone cannot show this: it only
+  /// moves forward by rank, so it cannot say that the hospital was notified before the ambulance arrived,
+  /// and "closed" does not mean anyone was admitted.
+  final List<IncidentMilestone> milestones;
+
   const Incident({
     this.id,
     this.referenceNumber,
@@ -98,6 +113,8 @@ class Incident {
     this.photoBytes,
     required this.status,
     required this.createdAt,
+    this.outcome,
+    this.milestones = const [],
   });
 
   Incident copyWith({
@@ -117,6 +134,8 @@ class Incident {
       photoBytes: photoBytes,
       status: status ?? this.status,
       createdAt: createdAt,
+      outcome: outcome,
+      milestones: milestones,
     );
   }
 
@@ -134,6 +153,17 @@ class Incident {
         ? DateTime.now()
         : DateTime.parse(createdAtValue as String);
     final victimCountValue = json['victim_count'];
+    final milestones = <IncidentMilestone>[];
+    for (final m in (json['milestones'] as List?) ?? const []) {
+      if (m is! Map) continue;
+      IncidentStatus? stage;
+      for (final candidate in IncidentStatus.values) {
+        if (candidate.name == m['status']) stage = candidate;
+      }
+      if (stage == null) continue; // a stage this app version does not know: skip it, do not crash
+      final at = m['at'];
+      milestones.add(IncidentMilestone(status: stage, at: at is String ? DateTime.tryParse(at)?.toLocal() : null));
+    }
     return Incident(
       id: json['id'] as String?,
       referenceNumber: json['reference_number'] as String?,
@@ -147,6 +177,37 @@ class Incident {
       photoPath: json['photo_path'] as String?,
       status: IncidentStatusX.fromApi(json['status'] as String),
       createdAt: createdAt,
+      outcome: json['outcome'] as String?,
+      milestones: milestones,
     );
   }
+}
+
+/// What to tell the citizen about how things stand. A closed incident does not mean a patient was admitted.
+extension IncidentWordingX on Incident {
+  /// Short status line. For a closed incident it says how it ended.
+  String get statusLabel => status == IncidentStatus.closed ? IncidentWordingX.closedLabel(outcome) : status.label;
+
+  /// The closing sentence under the timeline, or null while the incident is still open.
+  String? get closingMessage {
+    if (status == IncidentStatus.closed) {
+      return switch (outcome) {
+        'completed' => 'Patient admitted and incident closed. Thank you for reporting.',
+        'no_transport' => 'Incident closed: no one needed to be taken to hospital. Thank you for reporting.',
+        'false_alarm' => 'Incident closed: it was a false alarm. Thank you for reporting.',
+        'cancelled' => 'Incident closed: the report was cancelled. Thank you for reporting.',
+        _ => 'Incident closed. Thank you for reporting.',
+      };
+    }
+    if (status == IncidentStatus.admitted) return 'Patient admitted. Thank you for reporting.';
+    return null;
+  }
+
+  static String closedLabel(String? outcome) => switch (outcome) {
+        'completed' => 'Closed: patient admitted',
+        'no_transport' => 'Closed: no transport needed',
+        'false_alarm' => 'Closed: false alarm',
+        'cancelled' => 'Closed: report cancelled',
+        _ => 'Closed',
+      };
 }

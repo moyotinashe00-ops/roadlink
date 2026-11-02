@@ -3,13 +3,28 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/incident.dart';
 import '../theme/app_theme.dart';
 
-/// Renders the incident lifecycle from SRS §5.3 as a vertical timeline,
-/// highlighting every stage up to and including the current one.
+/// The incident's progress as a vertical timeline.
+///
+/// Built from the stages that REALLY happened, in the order they happened ([milestones], from the server's
+/// timeline), each with its time. It no longer assumes a fixed order with everything before the current stage
+/// "done": that showed "Patient admitted" on an incident that closed with no transport, and put "hospital
+/// notified" after "transporting" even when dispatch had notified the hospital earlier.
+///
+/// An older server that does not send milestones gets the previous fixed-order behaviour, except that a closed
+/// incident is shown as closed and never as admitted.
 class StatusTimeline extends StatelessWidget {
   final IncidentStatus current;
-  const StatusTimeline({super.key, required this.current});
+  final List<IncidentMilestone> milestones;
+  final String? outcome;
 
-  static const List<IncidentStatus> _stages = [
+  const StatusTimeline({
+    super.key,
+    required this.current,
+    this.milestones = const [],
+    this.outcome,
+  });
+
+  static const List<IncidentStatus> _fixedOrder = [
     IncidentStatus.reported,
     IncidentStatus.policeNotified,
     IncidentStatus.policeOnScene,
@@ -19,17 +34,44 @@ class StatusTimeline extends StatelessWidget {
     IncidentStatus.transporting,
     IncidentStatus.hospitalNotified,
     IncidentStatus.admitted,
-    IncidentStatus.closed,
   ];
+
+  String _label(IncidentStatus s) =>
+      s == IncidentStatus.closed ? IncidentWordingX.closedLabel(outcome) : s.label;
+
+  String _clock(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  List<_Row> _rows() {
+    if (milestones.isNotEmpty) {
+      return [
+        for (var i = 0; i < milestones.length; i++)
+          _Row(
+            label: _label(milestones[i].status),
+            time: milestones[i].at == null ? null : _clock(milestones[i].at!),
+            done: true,
+            latest: i == milestones.length - 1,
+          ),
+      ];
+    }
+    // Older server: no milestones. A closed incident is just "closed" (we cannot know what happened before).
+    if (current == IncidentStatus.closed) {
+      return [_Row(label: _label(IncidentStatus.closed), done: true, latest: true)];
+    }
+    final currentIndex = _fixedOrder.indexOf(current);
+    return [
+      for (var i = 0; i < _fixedOrder.length; i++)
+        _Row(label: _fixedOrder[i].label, done: i <= currentIndex, latest: i == currentIndex),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final currentIndex = _stages.indexOf(current);
+    final rows = _rows();
     return Column(
-      children: List.generate(_stages.length, (i) {
-        final stage = _stages[i];
-        final done = i <= currentIndex;
-        final isLast = i == _stages.length - 1;
+      children: List.generate(rows.length, (i) {
+        final row = rows[i];
+        final isLast = i == rows.length - 1;
         return IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,15 +83,15 @@ class StatusTimeline extends StatelessWidget {
                     height: 16,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: done ? AppColors.amber : Colors.transparent,
-                      border: Border.all(color: done ? AppColors.amber : AppColors.border, width: 2),
+                      color: row.done ? AppColors.amber : Colors.transparent,
+                      border: Border.all(color: row.done ? AppColors.amber : AppColors.border, width: 2),
                     ),
                   ),
                   if (!isLast)
                     Expanded(
                       child: Container(
                         width: 2,
-                        color: done ? AppColors.amber.withValues(alpha: 0.5) : AppColors.border,
+                        color: row.done ? AppColors.amber.withValues(alpha: 0.5) : AppColors.border,
                       ),
                     ),
                 ],
@@ -58,13 +100,25 @@ class StatusTimeline extends StatelessWidget {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 24),
-                  child: Text(
-                    stage.label,
-                    style: GoogleFonts.ibmPlexSans(
-                      fontSize: 15,
-                      fontWeight: done ? FontWeight.w600 : FontWeight.w400,
-                      color: done ? AppColors.textPrimary : AppColors.textMuted,
-                    ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          row.label,
+                          style: GoogleFonts.ibmPlexSans(
+                            fontSize: 15,
+                            fontWeight: row.done ? FontWeight.w600 : FontWeight.w400,
+                            color: row.done ? AppColors.textPrimary : AppColors.textMuted,
+                          ),
+                        ),
+                      ),
+                      if (row.time != null)
+                        Text(
+                          row.time!,
+                          style: GoogleFonts.ibmPlexSans(fontSize: 13, color: AppColors.textMuted),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -74,4 +128,12 @@ class StatusTimeline extends StatelessWidget {
       }),
     );
   }
+}
+
+class _Row {
+  final String label;
+  final String? time;
+  final bool done;
+  final bool latest;
+  const _Row({required this.label, this.time, required this.done, required this.latest});
 }

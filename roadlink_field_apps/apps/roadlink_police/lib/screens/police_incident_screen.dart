@@ -154,8 +154,18 @@ class _IncidentView extends StatelessWidget {
               // Once the scene is cleared there is nowhere left to go, so the button is hidden.
               if (state != 'cleared') ...[
                 NavigateButton(label: 'NAVIGATE TO SCENE', lat: incident.lat, lng: incident.lng),
-                const SizedBox(height: 18),
+                const SizedBox(height: 10),
               ],
+              // The officer follows the casualty: the hospital shown above is the one dispatch chose, kept live if
+              // dispatch changes it, and it stays available after the scene is cleared (a statement is taken there).
+              if (incident.hospital != null && incident.hospital!.hasLocation) ...[
+                NavigateButton(
+                  label: 'NAVIGATE TO ${incident.hospital!.name.toUpperCase()}',
+                  lat: incident.hospital!.lat!,
+                  lng: incident.hospital!.lng!,
+                ),
+              ],
+              const SizedBox(height: 18),
 
               // ---- state-driven actions ------------------------------------
               if (state == 'notified') ...[

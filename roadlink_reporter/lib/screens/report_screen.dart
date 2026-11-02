@@ -208,6 +208,8 @@ class _ReportScreenState extends State<ReportScreen> {
               _VictimStepper(value: _victimCount, onChanged: (v) => setState(() => _victimCount = v)),
               const SizedBox(height: 24),
               Text('How serious does it look?', style: RoadLinkFonts.display(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              const SizedBox(height: 4),
+              Text('This is your first estimate. Responders confirm it at the scene.', style: GoogleFonts.ibmPlexSans(fontSize: 12, color: AppColors.textMuted)),
               const SizedBox(height: 10),
               SeveritySelector(value: _severity, onChanged: (s) => setState(() => _severity = s)),
               const SizedBox(height: 24),
