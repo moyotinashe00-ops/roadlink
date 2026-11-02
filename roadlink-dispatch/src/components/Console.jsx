@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { needsAction, splitBoard } from '../lib/board.js';
 import { chime } from '../lib/alert.js';
+import ChangePassword from './ChangePassword.jsx';
 import { SEVERITY } from '../lib/format.js';
 import { useConsole, useNow } from '../lib/hooks.js';
 import { loadMuted, saveMuted } from '../lib/session.js';
@@ -24,10 +25,15 @@ export default function Console({ api, baseUrl, session, onLogout }) {
   const [creating, setCreating] = useState(false);
   const [picked, setPicked] = useState(null);
   const [closing, setClosing] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [notice, setNotice] = useState(null); // { kind: 'new' | 'ok' | 'error', text }
 
   const { board, fleet, live, loading, error, refresh, upsert } = useConsole({
     api, baseUrl, token: session.token, onAuthLost: onLogout,
+    onAmbulanceOverdue: (i) => {
+      if (!mutedRef.current) chime();
+      setNotice({ kind: 'error', text: `${i.reference_number} still has no ambulance. Assign one, or close it if none is needed.` });
+    },
     onNewIncident: (i) => {
       if (!mutedRef.current) chime();
       setNotice({ kind: 'new', text: `New ${(SEVERITY[i.severity] || SEVERITY.minor).label.toLowerCase()} report ${i.reference_number}` });
@@ -84,6 +90,7 @@ export default function Console({ api, baseUrl, session, onLogout }) {
           )}
           <button className="btn btn--primary" onClick={() => { setView('dispatch'); setCreating(true); setPicked(null); setSelectedId(null); }} disabled={creating && view === 'dispatch'}>New report</button>
           <button className="btn btn--ghost" onClick={toggleMute} aria-pressed={muted}>{muted ? 'Sound off' : 'Sound on'}</button>
+          <button className="btn btn--ghost" onClick={() => setChangingPassword(true)}>Password</button>
           <button className="btn btn--ghost" onClick={onLogout}>Sign out</button>
         </div>
       </header>
@@ -114,6 +121,10 @@ export default function Console({ api, baseUrl, session, onLogout }) {
       </main>
       )}
 
+      {changingPassword && (
+        <ChangePassword api={api} onCancel={() => setChangingPassword(false)}
+          onDone={() => { setChangingPassword(false); setNotice({ kind: 'ok', text: 'Password changed.' }); }} />
+      )}
       {closing && selected && <CloseDialog incident={selected} onConfirm={closeIncident} onCancel={() => setClosing(false)} />}
     </div>
   );

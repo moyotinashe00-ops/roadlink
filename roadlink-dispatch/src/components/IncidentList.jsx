@@ -29,7 +29,7 @@ function Card({ incident, selected, onSelect, now }) {
         {open && (
           <span className="inc__chips">
             <Chip label="Police" value={a.police ? POLICE_STATE[a.police.state] || a.police.state : 'none'} missing={n.police} />
-            <Chip label="Ambulance" value={a.ambulance ? AMBULANCE_STATE[a.ambulance.state] || a.ambulance.state : 'needed'} missing={n.ambulance} />
+            <Chip label="Ambulance" value={a.ambulance ? AMBULANCE_STATE[a.ambulance.state] || a.ambulance.state : (n.ambulanceOverdue ? 'OVERDUE' : 'needed')} missing={n.ambulance} />
             <Chip label="Hospital" value={a.hospital ? HOSPITAL_STATE[a.hospital.state] || a.hospital.state : (a.ambulance ? 'needed' : '-')} missing={n.hospital} />
           </span>
         )}

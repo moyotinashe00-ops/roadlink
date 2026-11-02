@@ -24,15 +24,15 @@ const FLEET_REFRESH_MS = 1500;
  * Keeps the console in sync: initial load, live Socket.IO events, and a polling fallback while the live
  * connection is down, so a dropped socket delays updates but never loses them.
  */
-export function useConsole({ api, baseUrl, token, onNewIncident, onAuthLost }) {
+export function useConsole({ api, baseUrl, token, onNewIncident, onAmbulanceOverdue, onAuthLost }) {
   const [board, dispatch] = useReducer(reducer, initialBoard);
   const [fleet, setFleet] = useState({ ambulances: [], police: [] });
   const [live, setLive] = useState('connecting'); // connecting | online | offline
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const cb = useRef({ onNewIncident, onAuthLost });
-  useEffect(() => { cb.current = { onNewIncident, onAuthLost }; });
+  const cb = useRef({ onNewIncident, onAmbulanceOverdue, onAuthLost });
+  useEffect(() => { cb.current = { onNewIncident, onAmbulanceOverdue, onAuthLost }; });
 
   const refresh = useCallback(async () => {
     try {
@@ -69,6 +69,7 @@ export function useConsole({ api, baseUrl, token, onNewIncident, onAuthLost }) {
       onEvent: (evt) => {
         dispatch({ type: 'event', evt });
         if (evt.isNew) cb.current.onNewIncident?.(evt.incident);
+        if (evt.event === 'ambulance_unassigned_alert') cb.current.onAmbulanceOverdue?.(evt.incident);
         refreshFleetSoon();
       },
       onResource: (p) => setFleet((f) => moveResource(f, p)),

@@ -35,10 +35,18 @@ describe('board ordering', () => {
   });
 
   it('works out what an incident still needs', () => {
-    expect(needs(incident())).toEqual({ police: false, ambulance: true, hospital: false });
-    expect(needs(withAmbulance())).toEqual({ police: false, ambulance: false, hospital: true });
+    expect(needs(incident())).toEqual({ police: false, ambulance: true, ambulanceOverdue: false, hospital: false });
+    expect(needs(withAmbulance())).toEqual({ police: false, ambulance: false, ambulanceOverdue: false, hospital: true });
     expect(needs(incident({ assignment: { police: null, ambulance: null, hospital: null } })).police).toBe(true);
     expect(needsAction(incident({ status: 'closed' }))).toBe(false);
+  });
+
+  it('flags an incident whose no-ambulance alert has fired, until one is assigned or it is closed', () => {
+    const alerted = incident({ ambulance_alert_at: '2026-10-18T08:03:00Z' });
+    expect(needs(alerted).ambulanceOverdue).toBe(true);
+    expect(needs(incident()).ambulanceOverdue).toBe(false);
+    expect(needs(withAmbulance('enRoute', { ambulance_alert_at: '2026-10-18T08:03:00Z' })).ambulanceOverdue).toBe(false);
+    expect(needs(incident({ status: 'closed', ambulance_alert_at: '2026-10-18T08:03:00Z' })).ambulanceOverdue).toBe(false);
   });
 
   it('moves a vehicle when a live position arrives, and ignores unknown kinds', () => {

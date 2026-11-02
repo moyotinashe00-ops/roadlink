@@ -2,7 +2,7 @@ export const SEVERITY = {
   minor:    { label: 'Minor',      tone: 'ok' },
   serious:  { label: 'Serious',    tone: 'warn' },
   critical: { label: 'Critical',   tone: 'crit' },
-  fatal:    { label: 'Fatalities', tone: 'fatal' },
+  fatal:    { label: 'Fatal',      tone: 'fatal' },
 };
 
 // The order a dispatcher works in: critical first, then serious, fatalities (nobody to rush, but the scene needs police), minor.
@@ -65,4 +65,10 @@ export function vitalsRows(v) {
     { key: 'spo2', label: 'Oxygen (SpO₂)', value: has(v.spo2_percent) ? String(v.spo2_percent) : '—', unit: has(v.spo2_percent) ? '%' : '' },
     { key: 'avpu', label: 'Consciousness', value: has(v.consciousness) ? (CONSCIOUSNESS[v.consciousness] || v.consciousness) : '—', unit: '' },
   ];
+}
+
+/** "3 min", "2 h": how old a hospital's bay numbers are. */
+export function minutesLabel(min) {
+  if (min === null || min === undefined) return 'never confirmed';
+  return min < 120 ? `${min} min` : `${Math.round(min / 60)} h`;
 }
