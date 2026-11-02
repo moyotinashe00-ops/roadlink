@@ -12,6 +12,9 @@ dependencies:
   google_fonts: ^6.2.1
   roadlink_shared:
     path: ../../packages/roadlink_shared
+  # Required by the FlutterFire-generated lib/firebase_options.dart. Push notifications are not wired in yet
+  # (no Firebase.initializeApp call), so this only makes that file compile.
+  firebase_core: ^5.0.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0
