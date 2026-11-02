@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1011408793772",
+    "project_id": "roadlink-ff78f",
+    "storage_bucket": "roadlink-ff78f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1011408793772:android:6aa89a7be527fcf0526f09",
+        "android_client_info": {
+          "package_name": "com.example.roadlink_reporter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_53EImejSmlT22BWN1h45uitkba9UICE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
