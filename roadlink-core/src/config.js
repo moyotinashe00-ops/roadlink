@@ -19,6 +19,11 @@ const config = {
   // If the alerted police unit has not accepted or declined within this time, alert the next nearest unit.
   policeAckTimeoutMin: num(process.env.POLICE_ACK_TIMEOUT_MIN, 3),
   escalationIntervalSec: num(process.env.ESCALATION_INTERVAL_SEC, 30),
+  // Dispatch is warned if an open incident still has no ambulance this long after the report.
+  // Hospital bay numbers older than this are flagged as unreliable (a hospital updates them by hand, so this is
+  // hours rather than the minutes that apply to a moving ambulance).
+  hospitalCapacityStaleMin: num(process.env.HOSPITAL_CAPACITY_STALE_MIN, 60),
+  ambulanceAlertMin: num(process.env.AMBULANCE_ALERT_MIN, 2),
   // Per-IP limit on anonymous reports. Mobile networks often put many people behind one address, so keep this generous.
   reportRateLimitPerMin: num(process.env.REPORT_RATE_LIMIT_PER_MIN, 60),
   etaAvgSpeedKmh: num(process.env.ETA_AVG_SPEED_KMH, 35),

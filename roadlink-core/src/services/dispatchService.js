@@ -3,6 +3,10 @@ const { estimateMinutes } = require('./geo');
 
 const staleAfterMin = Math.max(1, Math.round(config.staleLocationMin));
 
+const capacityStaleMin = Math.max(1, Math.round(config.hospitalCapacityStaleMin));
+/** Minutes since a hospital last confirmed its bay numbers (null if never). */
+const capacityAgeMin = (ts) => (ts ? Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 60000)) : null);
+const capacityStale = (ts) => capacityAgeMin(ts) === null || capacityAgeMin(ts) > capacityStaleMin;
 const stale = (ts) => (ts ? Date.now() - new Date(ts).getTime() > staleAfterMin * 60000 : true);
 
 /**
@@ -65,7 +69,8 @@ async function recommendHospitals(db, incidentId, limit = 5) {
     has_capacity: r.trauma_bays_free > 0,
     distance_m: Math.round(r.meters),
     eta_minutes: estimateMinutes(r.meters),
-    capacity_stale: stale(r.capacity_updated_at),
+    capacity_stale: capacityStale(r.capacity_updated_at),
+    capacity_age_min: capacityAgeMin(r.capacity_updated_at),
   }));
 }
 
@@ -87,4 +92,4 @@ async function recommendPolice(db, incidentId, limit = 6) {
   }));
 }
 
-module.exports = { AMBULANCE_ORDER_SQL, nearestPoliceUnit, recommendAmbulances, recommendHospitals, recommendPolice };
+module.exports = { capacityStale, capacityAgeMin, AMBULANCE_ORDER_SQL, nearestPoliceUnit, recommendAmbulances, recommendHospitals, recommendPolice };

@@ -5,6 +5,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { conflict } = require('../middleware/errors');
 const notify = require('../services/notifications');
+const { capacityStale, capacityAgeMin } = require('../services/dispatchService');
 
 const router = express.Router();
 router.use(['/hospitals', '/ambulances', '/police-units'], authenticate);
@@ -21,7 +22,7 @@ router.get('/hospitals', async (req, res) => {
   const { rows } = await query(
     `SELECT h.id, h.name, h.is_active, h.contact_number, h.trauma_bays_total, h.trauma_bays_free, h.capacity_updated_at, ${pt('h')}
      FROM hospitals h WHERE ($1::boolean OR h.is_active) ORDER BY h.name`, [all]);
-  res.json({ hospitals: rows });
+  res.json({ hospitals: rows.map((r) => ({ ...r, capacity_stale: capacityStale(r.capacity_updated_at), capacity_age_min: capacityAgeMin(r.capacity_updated_at) })) });
 });
 
 // HOS-05: staff keep the number the dispatcher's hospital ranking uses up to date.
@@ -35,8 +36,9 @@ router.patch('/hospitals/me/capacity', requireRole('hospital'),
        RETURNING id, name, trauma_bays_free, trauma_bays_total, capacity_updated_at`,
       [req.user.hospital_id, trauma_bays_free, trauma_bays_total ?? null]);
     if (!rows[0]) throw conflict('Free bays cannot exceed total bays', 'BAD_CAPACITY');
-    notify.broadcastToDispatch('hospital:capacity', rows[0]);
-    res.json(rows[0]);
+    const fresh = { ...rows[0], capacity_stale: false, capacity_age_min: 0 };
+    notify.broadcastToDispatch('hospital:capacity', fresh);
+    res.json(fresh);
   });
 
 // ---- Ambulances ------------------------------------------------------------
