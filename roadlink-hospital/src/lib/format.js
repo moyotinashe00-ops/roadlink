@@ -2,7 +2,7 @@ export const SEVERITY = {
   minor:    { label: 'Minor',      tone: 'ok' },
   serious:  { label: 'Serious',    tone: 'warn' },
   critical: { label: 'Critical',   tone: 'crit' },
-  fatal:    { label: 'Fatalities', tone: 'fatal' },
+  fatal:    { label: 'Fatal',      tone: 'fatal' },
 };
 
 export const AMBULANCE_STATE = {

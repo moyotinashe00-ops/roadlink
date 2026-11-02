@@ -33,6 +33,10 @@ function setupServer(over = {}) {
     const err = (status, code, message) => ({ ok: false, status, json: async () => ({ error: { code, message } }) });
 
     if (path === '/auth/login') return ok({ token: 'tok', user: server.user });
+    if (path === '/auth/change-password') {
+      if (server.wrongPassword) return err(400, 'BAD_REQUEST', 'Current password is incorrect');
+      return { ok: true, status: 204, json: async () => null };
+    }
     if (server.expireSession && path.startsWith('/incidents')) return err(401, 'UNAUTHORIZED', 'expired');
     if (path.startsWith('/incidents?')) return ok({ incidents: server.incidents });
     if (path === '/hospitals') return ok({ hospitals: [server.hospital] });
@@ -216,6 +220,89 @@ describe('trauma bay capacity', () => {
     await user.click(screen.getByRole('button', { name: /one fewer free bay/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/cannot exceed total/i);
     expect(screen.getByTestId('free-count')).toHaveTextContent('3');
+  });
+});
+
+describe('review fixes', () => {
+  it('shows the police case number on the card, so the receiving desk can quote it', async () => {
+    const inc = incident({ case_reference: 'CR 214/26' });
+    setupServer({ incidents: [inc] });
+    await signIn();
+    const card = (await screen.findByText(inc.reference_number)).closest('article');
+    expect(within(card).getByTestId('case-reference')).toHaveTextContent('Police case CR 214/26');
+  });
+
+  it('shows no case line until police have recorded one', async () => {
+    const inc = incident({ case_reference: null });
+    setupServer({ incidents: [inc] });
+    await signIn();
+    const card = (await screen.findByText(inc.reference_number)).closest('article');
+    expect(within(card).queryByTestId('case-reference')).not.toBeInTheDocument();
+  });
+
+  it('uses one word for the worst severity', async () => {
+    const inc = incident({ severity: 'fatal' });
+    setupServer({ incidents: [inc] });
+    await signIn();
+    const card = (await screen.findByText(inc.reference_number)).closest('article');
+    expect(within(card).getByText('Fatal')).toBeInTheDocument();
+    expect(within(card).queryByText('Fatalities')).not.toBeInTheDocument();
+  });
+
+  it('asks the hospital to confirm bay numbers dispatch can see are old, and "still correct" clears it', async () => {
+    setupServer({ hospital: { ...HOSP, capacity_stale: true, capacity_age_min: 200 } });
+    const user = await signIn();
+    const prompt = await screen.findByText(/may be out of date/i);
+    expect(prompt).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Still correct' }));
+    await waitFor(() => expect(calls.find((c) => c.path === '/hospitals/me/capacity').body).toEqual({ trauma_bays_free: 3, trauma_bays_total: 6 }));
+    await waitFor(() => expect(screen.queryByText(/may be out of date/i)).not.toBeInTheDocument());
+    expect(screen.getByTestId('free-count')).toHaveTextContent('3'); // confirming does not change the number
+  });
+
+  it('does not nag when the numbers are fresh', async () => {
+    setupServer();
+    await signIn();
+    await screen.findByTestId('free-count');
+    expect(screen.queryByText(/may be out of date/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Still correct' })).not.toBeInTheDocument();
+  });
+});
+
+describe('changing your own password (FR15)', () => {
+  async function openDialog() {
+    const user = await signIn();
+    await user.click(await screen.findByRole('button', { name: 'Password' }));
+    return { user, dialog: await screen.findByRole('dialog', { name: /change password/i }) };
+  }
+  async function fill(user, dialog, cur, a, b) {
+    await user.type(within(dialog).getByLabelText('Current password'), cur);
+    await user.type(within(dialog).getByLabelText('New password'), a);
+    await user.type(within(dialog).getByLabelText('New password again'), b);
+    await user.click(within(dialog).getByRole('button', { name: 'Change password' }));
+  }
+
+  it('sends the current and the new password and confirms', async () => {
+    setupServer();
+    const { user, dialog } = await openDialog();
+    await fill(user, dialog, 'old-password-1', 'a-much-better-1', 'a-much-better-1');
+    await waitFor(() => expect(calls.find((c) => c.path === '/auth/change-password').body).toEqual({ current_password: 'old-password-1', new_password: 'a-much-better-1' }));
+    expect(await screen.findByText('Password changed.')).toBeInTheDocument();
+  });
+
+  it('refuses a mismatch or a short password without calling the server', async () => {
+    setupServer();
+    const { user, dialog } = await openDialog();
+    await fill(user, dialog, 'old-password-1', 'long-enough-1', 'different-two');
+    expect(await within(dialog).findByText(/do not match/i)).toBeInTheDocument();
+    expect(calls.find((c) => c.path === '/auth/change-password')).toBeUndefined();
+  });
+
+  it('shows the server\'s reason when the current password is wrong', async () => {
+    setupServer({ wrongPassword: true });
+    const { user, dialog } = await openDialog();
+    await fill(user, dialog, 'nope-nope-1', 'a-much-better-1', 'a-much-better-1');
+    expect(await within(dialog).findByText(/current password is incorrect/i)).toBeInTheDocument();
   });
 });
 

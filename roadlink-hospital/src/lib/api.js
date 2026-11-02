@@ -40,6 +40,7 @@ export function createApi({ baseUrl, getToken = () => null, onUnauthorized = () 
 
   return {
     login: (identifier, password) => request('POST', '/auth/login', { identifier, password }),
+    changePassword: (current_password, new_password) => request('POST', '/auth/change-password', { current_password, new_password }),
     listIncidents: (status = 'all', limit = 100) => request('GET', `/incidents?status=${status}&limit=${limit}`).then((r) => r.incidents),
     timeline: (id) => request('GET', `/incidents/${id}/timeline`).then((r) => r.timeline),
     acknowledge: (id) => request('POST', `/incidents/${id}/hospital/acknowledge`),
