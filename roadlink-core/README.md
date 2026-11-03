@@ -108,6 +108,8 @@ tests/               integration suites                      docs/API.md     end
   recording crew and the receiving hospital only. Police and citizens never get the field, in REST or on the socket,
   and the timeline records *that* vitals were taken but never the values, because police can read the timeline.
   `GET /incidents/:id/vitals` returns the full history to the same audience.
+- **Push tokens belong to one account at a time.** `PUT /auth/fcm-token` takes the token away from any other account that
+  held it (a shared phone), and `DELETE /auth/fcm-token` clears it on sign-out.
 
 - **Every change to an incident is in the timeline (NFR10), and a test enforces it.** `tests/audit-trail.test.js` walks one
   incident through every state-changing endpoint and fails if any call changes it without adding a timeline entry. It

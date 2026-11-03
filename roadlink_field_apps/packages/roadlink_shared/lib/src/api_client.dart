@@ -101,6 +101,12 @@ class RoadLinkApi {
   Future<void> sendLocation(FieldRole role, double lat, double lng) =>
       _send('PATCH', '${_resourcePath(role)}/location', body: {'lat': lat, 'lng': lng});
 
+  /// Tell Core which phone to send push alerts to. Core keeps one token per account.
+  Future<void> registerPushToken(String token) => _send('PUT', '/auth/fcm-token', body: {'token': token});
+
+  /// Stop push alerts to this account's phone (sign-out).
+  Future<void> clearPushToken() => _send('DELETE', '/auth/fcm-token');
+
   // ---- incidents ----------------------------------------------------------
   Future<List<Incident>> listIncidents({String status = 'open'}) async {
     final d = _map(await _send('GET', '/incidents?status=$status&limit=100'));

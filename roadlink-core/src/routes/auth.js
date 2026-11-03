@@ -54,9 +54,19 @@ router.get('/me', authenticate, (req, res) => res.json({ user: publicUser(req.us
 router.put('/fcm-token', authenticate,
   validate(z.object({ token: z.string().min(20).max(4096).nullable() })),
   async (req, res) => {
-    await query('UPDATE users SET fcm_token = $2 WHERE id = $1', [req.user.id, req.valid.body.token]);
+    const { token } = req.valid.body;
+    // One phone, one account. If somebody else was signed in on this phone before, their alerts must not follow
+    // the new person, so take the token away from them first.
+    if (token) await query('UPDATE users SET fcm_token = NULL WHERE fcm_token = $2 AND id <> $1', [req.user.id, token]);
+    await query('UPDATE users SET fcm_token = $2 WHERE id = $1', [req.user.id, token]);
     res.status(204).end();
   });
+
+// Sign-out: stop pushing to this account's phone.
+router.delete('/fcm-token', authenticate, async (req, res) => {
+  await query('UPDATE users SET fcm_token = NULL WHERE id = $1', [req.user.id]);
+  res.status(204).end();
+});
 
 router.post('/change-password', authenticate,
   validate(z.object({ current_password: z.string().min(1), new_password: z.string().min(8).max(200) })),

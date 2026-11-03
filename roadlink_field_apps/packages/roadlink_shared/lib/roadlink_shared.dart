@@ -6,6 +6,7 @@ export 'src/api_client.dart';
 export 'src/session.dart';
 export 'src/realtime.dart';
 export 'src/location_reporter.dart';
+export 'src/push_service.dart';
 export 'src/field_controller.dart';
 export 'src/field_app_shell.dart';
 export 'src/widgets.dart';

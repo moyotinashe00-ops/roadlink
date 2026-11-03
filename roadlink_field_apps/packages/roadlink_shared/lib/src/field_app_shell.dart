@@ -26,6 +26,9 @@ class FieldAppShell extends StatefulWidget {
 
   final String baseUrl;
 
+  /// Register this phone for push alerts. The app sets this only after Firebase has started successfully.
+  final bool enablePush;
+
   const FieldAppShell({
     super.key,
     required this.role,
@@ -35,6 +38,7 @@ class FieldAppShell extends StatefulWidget {
     required this.icon,
     required this.home,
     this.baseUrl = _defaultBaseUrl,
+    this.enablePush = false,
   });
 
   @override
@@ -49,7 +53,7 @@ class _FieldAppShellState extends State<FieldAppShell> {
   @override
   void initState() {
     super.initState();
-    _c = FieldController(role: widget.role, baseUrl: widget.baseUrl);
+    _c = FieldController(role: widget.role, baseUrl: widget.baseUrl, enablePush: widget.enablePush);
     _c.addListener(_onChange);
     _c.restore();
   }
