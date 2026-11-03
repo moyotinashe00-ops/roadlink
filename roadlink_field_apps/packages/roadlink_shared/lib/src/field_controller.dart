@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'api_client.dart';
 import 'location_reporter.dart';
 import 'models.dart';
+import 'push_service.dart';
 import 'realtime.dart';
 import 'session.dart';
 
@@ -13,20 +14,30 @@ enum LiveStatus { connecting, online, offline }
 /// One controller per running app. It owns the session, the live feed (with a polling fallback while
 /// the socket is down — SRS §7.3), location sharing, and every action the crew can take.
 class FieldController extends ChangeNotifier {
-  FieldController({required this.role, required this.baseUrl, SessionStore? store}) : _store = store ?? SessionStore() {
+  FieldController({
+    required this.role,
+    required this.baseUrl,
+    SessionStore? store,
+    bool enablePush = false,
+    PushService? push,
+  }) : _store = store ?? SessionStore() {
     api = RoadLinkApi(
       baseUrl: baseUrl,
       tokenProvider: () => _token,
       onUnauthorized: () {
-        if (_token != null) signOut(notice: 'Your session expired. Please sign in again.');
+        if (_token != null && !_signingOut) signOut(notice: 'Your session expired. Please sign in again.', sessionExpired: true);
       },
     );
+    // Push needs Firebase to have started (the app decides that, see enablePush). A test can inject its own.
+    _push = push ?? (enablePush ? PushService(register: api.registerPushToken, clear: api.clearPushToken) : null);
   }
 
   final FieldRole role;
   final String baseUrl;
   final SessionStore _store;
   late final RoadLinkApi api;
+  PushService? _push;
+  bool _signingOut = false;
 
   String? _token;
   AppUser? user;
@@ -100,11 +111,20 @@ class FieldController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> signOut({String? notice}) async {
-    await _teardown();
-    await _forget();
-    this.notice = notice;
-    _notify();
+  Future<void> signOut({String? notice, bool sessionExpired = false}) async {
+    if (_signingOut) return;
+    _signingOut = true;
+    try {
+      // While the session is still valid, stop pushes to this phone so the next person to sign in on it does not
+      // get this account's alerts. If the session already expired there is nothing to tell the server.
+      await _push?.stop(tellServer: !sessionExpired);
+      await _teardown();
+      await _forget();
+      this.notice = notice;
+      _notify();
+    } finally {
+      _signingOut = false;
+    }
   }
 
   Future<void> _forget() async {
@@ -123,6 +143,7 @@ class FieldController extends ChangeNotifier {
     _statusSub = rt.status.listen(_onStatus);
     live = LiveStatus.connecting;
     rt.connect();
+    unawaited(_push?.start()); // alerts while the app is closed; never blocks or fails the sign-in
 
     location = LocationReporter(
       send: (lat, lng) => api.sendLocation(role, lat, lng),
