@@ -1,7 +1,7 @@
 {
   "name": "roadlink-core",
   "version": "1.0.0",
-  "description": "RoadLink Core \u2014 backend API, real-time and dispatch services for RoadLink ZW",
+  "description": "RoadLink Core — backend API, real-time and dispatch services for RoadLink ZW",
   "main": "src/server.js",
   "private": true,
   "engines": {
@@ -25,6 +25,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.4.0",
     "pg": "^8.23.1",
+    "sharp": "^0.35.5",
     "socket.io": "^4.8.4",
     "zod": "^4.6.5"
   },
