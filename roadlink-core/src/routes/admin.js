@@ -4,7 +4,7 @@ const { z } = require('zod');
 const { query } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
-const { badRequest, notFound } = require('../middleware/errors');
+const { badRequest, conflict, notFound } = require('../middleware/errors');
 
 const router = express.Router();
 router.use(authenticate, requireRole('admin'));
@@ -59,7 +59,8 @@ router.get('/users', async (req, res) => {
 
 // Accounts are deactivated, never deleted, so the audit trail keeps pointing at a real person.
 router.patch('/users/:id', uuidParam,
-  validate(z.object({ name: z.string().trim().min(2).max(120).optional(), is_active: z.boolean().optional(), password: z.string().min(8).max(200).optional() })),
+  // .strict(): a field the server does not accept is an error, never silently dropped.
+  validate(z.object({ name: z.string().trim().min(2).max(120).optional(), is_active: z.boolean().optional(), password: z.string().min(8).max(200).optional() }).strict()),
   async (req, res) => {
     const b = { ...req.valid.body };
     if (b.password) { b.password_hash = await bcrypt.hash(b.password, 10); delete b.password; }
@@ -92,7 +93,8 @@ router.post('/hospitals',
 
 router.patch('/hospitals/:id', uuidParam,
   validate(z.object({ name: z.string().trim().min(2).max(160).optional(), contact_number: z.string().trim().max(30).optional(),
-    is_active: z.boolean().optional(), lat: lat.optional(), lng: lng.optional() })),
+    is_active: z.boolean().optional(), lat: lat.optional(), lng: lng.optional() }).strict()
+    .refine((b) => (b.lat === undefined) === (b.lng === undefined), { message: 'Send the latitude and the longitude together' })),
   async (req, res) => {
     const { sets, params } = buildUpdate(req.valid.body, ['name', 'contact_number', 'is_active']);
     const { rows } = await query(`UPDATE hospitals SET ${sets} WHERE id = $1 RETURNING id, name, is_active, ${SELECT_POINT}`, [req.params.id, ...params]);
@@ -114,10 +116,17 @@ router.post('/ambulances',
   });
 
 router.patch('/ambulances/:id', uuidParam,
-  validate(z.object({ provider: z.string().trim().max(120).optional(), is_active: z.boolean().optional() })),
+  validate(z.object({ plate_number: z.string().trim().min(3).max(20).optional(), provider: z.string().trim().max(120).optional(),
+    is_active: z.boolean().optional() }).strict()),
   async (req, res) => {
-    const { sets, params } = buildUpdate(req.valid.body, ['provider', 'is_active']);
-    const { rows } = await query(`UPDATE ambulances SET ${sets} WHERE id = $1 RETURNING id, plate_number, provider, is_active`, [req.params.id, ...params]);
+    const { sets, params } = buildUpdate(req.valid.body, ['plate_number', 'provider', 'is_active']);
+    let rows;
+    try {
+      ({ rows } = await query(`UPDATE ambulances SET ${sets} WHERE id = $1 RETURNING id, plate_number, provider, is_active`, [req.params.id, ...params]));
+    } catch (err) {
+      if (err.code === '23505') throw conflict('That number plate belongs to another ambulance', 'DUPLICATE_PLATE');
+      throw err;
+    }
     if (!rows[0]) throw notFound('Ambulance not found');
     res.json(rows[0]);
   });
@@ -136,9 +145,10 @@ router.post('/police-units',
   });
 
 router.patch('/police-units/:id', uuidParam,
-  validate(z.object({ station: z.string().trim().max(120).optional(), coverage_area: z.string().trim().max(200).optional(), is_active: z.boolean().optional() })),
+  validate(z.object({ name: z.string().trim().min(2).max(160).optional(), station: z.string().trim().max(120).optional(),
+    coverage_area: z.string().trim().max(200).optional(), is_active: z.boolean().optional() }).strict()),
   async (req, res) => {
-    const { sets, params } = buildUpdate(req.valid.body, ['station', 'coverage_area', 'is_active']);
+    const { sets, params } = buildUpdate(req.valid.body, ['name', 'station', 'coverage_area', 'is_active']);
     const { rows } = await query(`UPDATE police_units SET ${sets} WHERE id = $1 RETURNING id, name, station, coverage_area, is_active`, [req.params.id, ...params]);
     if (!rows[0]) throw notFound('Police unit not found');
     res.json(rows[0]);

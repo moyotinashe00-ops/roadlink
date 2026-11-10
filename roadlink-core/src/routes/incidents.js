@@ -8,6 +8,7 @@ const { z } = require('zod');
 
 const config = require('../config');
 const svc = require('../services/incidentService');
+const { scrubImage } = require('../services/images');
 const { insideZimbabwe } = require('../services/geo');
 const { publicView, staffView } = require('../services/views');
 const { authenticate, optionalAuth, requireRole } = require('../middleware/auth');
@@ -96,6 +97,7 @@ const uploadDir = path.resolve(config.uploadDir);
 fs.mkdirSync(uploadDir, { recursive: true });
 
 const EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+const EXT_BY_FORMAT = { jpeg: '.jpg', png: '.png', webp: '.webp' };
 const upload = multer({
   storage: multer.diskStorage({
     destination: uploadDir,
@@ -124,10 +126,24 @@ const photoLimiter = rateLimit({
 
 router.post('/:id/photo', id, photoLimiter, upload.single('photo'), async (req, res) => {
   if (!req.file) throw badRequest('Attach the image in a "photo" field', 'NO_FILE');
-  const remove = () => fs.unlink(req.file.path, () => {});
-  if (!looksLikeImage(req.file.path)) { remove(); throw badRequest('File is not a valid image', 'BAD_IMAGE'); }
+  let filename = req.file.filename;
+  let filePath = req.file.path;
+  const remove = () => fs.unlink(filePath, () => {});
+  if (!looksLikeImage(filePath)) { remove(); throw badRequest('File is not a valid image', 'BAD_IMAGE'); }
   try {
-    const { row } = await svc.attachPhoto(req.params.id, req.file.filename);
+    // Strip location and camera metadata, and make sure it really decodes. The stored name then follows the real
+    // format, not the one the client claimed.
+    const { format } = await scrubImage(filePath);
+    const correct = `${path.parse(filename).name}${EXT_BY_FORMAT[format]}`;
+    if (correct !== filename) {
+      const target = path.join(uploadDir, correct);
+      fs.renameSync(filePath, target);
+      filename = correct;
+      filePath = target;
+    }
+  } catch { remove(); throw badRequest('File is not a valid image', 'BAD_IMAGE'); }
+  try {
+    const { row } = await svc.attachPhoto(req.params.id, filename);
     res.status(201).json(publicView(row));
   } catch (err) { remove(); throw err; }
 });
